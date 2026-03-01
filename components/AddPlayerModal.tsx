@@ -59,7 +59,7 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Please enter a player name');
       return;
@@ -100,7 +100,7 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <Pressable style={styles.photoSection} onPress={pickImage} disabled={uploading}>
+            <Pressable style={styles.photoSection} onPress={pickImage}>
               {photo ? (
                 <Image source={{ uri: photo }} style={styles.photoPreview} />
               ) : (
@@ -284,5 +284,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
   },
-
 });

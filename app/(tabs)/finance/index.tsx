@@ -161,7 +161,7 @@ export default function FinanceScreen() {
   const handleCloudSync = useCallback(() => {
     Alert.alert(
       'Sync to Cloud',
-      'This will upload all your local data to the cloud. Any existing cloud data will be overwritten.',
+      'This will upload all your local data to Supabase. Any existing cloud data will be overwritten.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Sync', onPress: () => forceCloudSync() },
@@ -172,7 +172,7 @@ export default function FinanceScreen() {
   const handleCloudRestore = useCallback(() => {
     Alert.alert(
       'Restore from Cloud',
-      'This will download all data from the cloud and replace your local data. Are you sure?',
+      'This will download all data from Supabase and replace your local data. Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -207,7 +207,7 @@ export default function FinanceScreen() {
       <View style={styles.cloudInfoCard}>
         <Text style={styles.cloudInfoTitle}>How it works</Text>
         <Text style={styles.cloudInfoText}>
-          Your data is stored locally on your device. Cloud sync is currently disabled.
+          Your data is stored locally on your device first. Cloud sync backs it up to Supabase so you can restore on a new device.
         </Text>
         <View style={styles.cloudInfoStats}>
           <Text style={styles.cloudInfoStat}>{players.length} players</Text>
@@ -226,7 +226,7 @@ export default function FinanceScreen() {
         <CloudUpload size={22} color="#fff" />
         <View style={styles.cloudButtonTextWrap}>
           <Text style={styles.cloudButtonTitle}>Sync to Cloud</Text>
-          <Text style={styles.cloudButtonSub}>Upload local data to cloud</Text>
+          <Text style={styles.cloudButtonSub}>Upload local data to Supabase</Text>
         </View>
       </Pressable>
 
@@ -238,7 +238,7 @@ export default function FinanceScreen() {
         <CloudDownload size={22} color="#fff" />
         <View style={styles.cloudButtonTextWrap}>
           <Text style={styles.cloudButtonTitle}>Restore from Cloud</Text>
-          <Text style={styles.cloudButtonSub}>Download data from cloud</Text>
+          <Text style={styles.cloudButtonSub}>Download data from Supabase</Text>
         </View>
       </Pressable>
 
