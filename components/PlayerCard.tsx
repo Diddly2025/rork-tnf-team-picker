@@ -1,0 +1,167 @@
+import React from 'react';
+import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { User } from 'lucide-react-native';
+import { Player } from '@/types';
+import { getRatingTier, getPositionColor } from '@/utils/teamGenerator';
+
+interface PlayerCardProps {
+  player: Player;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  selected?: boolean;
+  size?: 'small' | 'medium' | 'large';
+  showSelection?: boolean;
+}
+
+const tierColors = {
+  gold: {
+    primary: '#c8a02a',
+    secondary: '#e6c84a',
+    bg: '#fdf6e3',
+    bgDark: '#f0e4b8',
+  },
+  silver: {
+    primary: '#6b7280',
+    secondary: '#9ca3af',
+    bg: '#f3f4f6',
+    bgDark: '#dcdee2',
+  },
+  bronze: {
+    primary: '#b5651d',
+    secondary: '#d4874a',
+    bg: '#fef3e8',
+    bgDark: '#f0d9be',
+  },
+};
+
+export default function PlayerCard({ 
+  player, 
+  onPress, 
+  onLongPress,
+  selected = false, 
+  size = 'medium',
+  showSelection = false,
+}: PlayerCardProps) {
+  const tier = getRatingTier(player.rating);
+  const colors = tierColors[tier];
+  const positionColor = getPositionColor(player.position);
+  
+  const dimensions = {
+    small: { width: 68, height: 92, photoSize: 44, nameSize: 8, metaSize: 7, ratingSize: 9, iconSize: 22, borderW: 1, pad: 3, namePad: 2 },
+    medium: { width: 105, height: 148, photoSize: 76, nameSize: 11, metaSize: 9, ratingSize: 11, iconSize: 34, borderW: 1.5, pad: 5, namePad: 4 },
+    large: { width: 145, height: 200, photoSize: 110, nameSize: 13, metaSize: 11, ratingSize: 13, iconSize: 48, borderW: 2, pad: 7, namePad: 5 },
+  };
+  
+  const d = dimensions[size];
+
+  return (
+    <Pressable 
+      onPress={onPress} 
+      onLongPress={onLongPress}
+      style={({ pressed }) => [
+        styles.container,
+        { width: d.width, margin: size === 'small' ? 2 : 4 },
+        selected && styles.selected,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={[styles.card, { backgroundColor: colors.bg, borderColor: colors.primary, borderWidth: d.borderW, borderRadius: size === 'small' ? 6 : 8 }]}>
+        <View style={[styles.photoContainer, { width: d.photoSize, height: d.photoSize, marginTop: d.pad, borderRadius: size === 'small' ? 4 : 6 }]}>
+          {player.photo ? (
+            <Image 
+              source={{ uri: player.photo }} 
+              style={[styles.photo, { width: d.photoSize, height: d.photoSize, borderRadius: size === 'small' ? 4 : 6 }]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.photoPlaceholder, { width: d.photoSize, height: d.photoSize, backgroundColor: colors.bgDark, borderRadius: size === 'small' ? 4 : 6 }]}>
+              <User size={d.iconSize} color={colors.primary} strokeWidth={1.5} />
+            </View>
+          )}
+          <View style={[styles.ratingBadge, { backgroundColor: colors.primary, borderRadius: size === 'small' ? 3 : 4, paddingHorizontal: size === 'small' ? 3 : 5, paddingVertical: size === 'small' ? 1 : 2 }]}>
+            <Text style={[styles.ratingText, { fontSize: d.ratingSize }]}>{player.rating}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.infoSection, { paddingHorizontal: d.pad, paddingTop: d.namePad, paddingBottom: d.pad }]}>
+          <Text 
+            style={[styles.name, { fontSize: d.nameSize, color: colors.primary }]} 
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {player.name.toUpperCase()}
+          </Text>
+          <Text style={[styles.position, { fontSize: d.metaSize, color: positionColor }]}>
+            {player.position}
+          </Text>
+        </View>
+
+        {showSelection && (
+          <View style={[
+            styles.selectionIndicator, 
+            { 
+              backgroundColor: selected ? '#16a34a' : 'transparent', 
+              borderColor: selected ? '#16a34a' : colors.primary,
+              width: size === 'small' ? 10 : 14,
+              height: size === 'small' ? 10 : 14,
+              borderRadius: size === 'small' ? 5 : 7,
+            }
+          ]} />
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {},
+  card: {
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  selected: {
+    transform: [{ scale: 1.05 }],
+  },
+  pressed: {
+    opacity: 0.9,
+  },
+  photoContainer: {
+    alignSelf: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  photo: {},
+  photoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+  },
+  ratingText: {
+    color: '#ffffff',
+    fontWeight: '800' as const,
+  },
+  infoSection: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  name: {
+    fontWeight: '700' as const,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  position: {
+    fontWeight: '600' as const,
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    borderWidth: 1.5,
+  },
+});

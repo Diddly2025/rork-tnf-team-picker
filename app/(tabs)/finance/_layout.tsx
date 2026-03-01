@@ -1,0 +1,17 @@
+import { Stack } from 'expo-router';
+import Colors from '@/constants/colors';
+
+export default function FinanceLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: Colors.cardBackground },
+        headerTitleStyle: { color: Colors.text, fontWeight: '700' },
+        headerTintColor: Colors.gold,
+        headerShadowVisible: false,
+      }}
+    >
+      <Stack.Screen name="index" options={{ title: 'Finance' }} />
+    </Stack>
+  );
+}
