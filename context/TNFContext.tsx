@@ -17,6 +17,7 @@ import {
   fetchSubsSettingsFromSupabase,
 } from '@/utils/supabaseSync';
 import { isSupabaseConfigured } from '@/utils/supabase';
+import { migrateLocalPhotosToCloud } from '@/utils/photoStorage';
 
 const PLAYERS_KEY = 'tnf_players';
 const RESTRICTIONS_KEY = 'tnf_restrictions';
@@ -218,8 +219,20 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     }
     setSyncStatus('syncing');
     try {
+      const updatedPhotos = await migrateLocalPhotosToCloud(players);
+      let playersToSync = players;
+      if (updatedPhotos.size > 0) {
+        playersToSync = players.map(p => {
+          const newUrl = updatedPhotos.get(p.id);
+          return newUrl ? { ...p, photo: newUrl } : p;
+        });
+        await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(playersToSync));
+        queryClient.setQueryData(['players'], playersToSync);
+        console.log('[Sync] Updated', updatedPhotos.size, 'player photos to remote URLs');
+      }
+
       await Promise.all([
-        syncPlayersToSupabase(players),
+        syncPlayersToSupabase(playersToSync),
         syncRestrictionsToSupabase(restrictions),
         syncMatchResultsToSupabase(matchHistory),
         syncSubsPaymentsToSupabase(subsPayments),
@@ -232,7 +245,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       setSyncStatus('error');
       console.log('[Sync] Full sync failed:', e);
     }
-  }, [players, restrictions, matchHistory, subsPayments, subsSettings]);
+  }, [players, restrictions, matchHistory, subsPayments, subsSettings, queryClient]);
 
   const forceCloudRestore = useCallback(async () => {
     if (!isSupabaseConfigured()) {
