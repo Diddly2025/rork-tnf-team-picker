@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import {
   PiggyBank,
@@ -42,6 +43,8 @@ export default function FinanceScreen() {
     forceCloudSync,
     forceCloudRestore,
     syncStatus,
+    cloudSyncEnabled,
+    toggleCloudSync,
   } = useTNF();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('kitty');
@@ -184,8 +187,41 @@ export default function FinanceScreen() {
     );
   }, [forceCloudRestore]);
 
+  const handleToggleCloudSync = useCallback((enabled: boolean) => {
+    if (enabled) {
+      Alert.alert(
+        'Enable Cloud Sync',
+        'This will automatically sync your data to Supabase when you make changes. Make sure your Supabase tables are set up first.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Enable', onPress: () => toggleCloudSync(true) },
+        ]
+      );
+    } else {
+      toggleCloudSync(false);
+    }
+  }, [toggleCloudSync]);
+
   const renderCloudTab = () => (
     <ScrollView contentContainerStyle={styles.cloudContent}>
+      <View style={styles.cloudToggleCard}>
+        <View style={styles.cloudToggleLeft}>
+          <Cloud size={22} color={cloudSyncEnabled ? Colors.gold : Colors.textMuted} />
+          <View style={styles.cloudToggleText}>
+            <Text style={styles.cloudToggleTitle}>Cloud Sync</Text>
+            <Text style={styles.cloudToggleSubtitle}>
+              {cloudSyncEnabled ? 'Auto-syncing changes to Supabase' : 'Disabled — data stays local only'}
+            </Text>
+          </View>
+        </View>
+        <Switch
+          value={cloudSyncEnabled}
+          onValueChange={handleToggleCloudSync}
+          trackColor={{ false: Colors.cardBorder, true: Colors.gold }}
+          thumbColor="#fff"
+        />
+      </View>
+
       <View style={styles.cloudStatusCard}>
         {syncStatus === 'syncing' ? (
           <ActivityIndicator size="small" color={Colors.gold} />
@@ -207,7 +243,7 @@ export default function FinanceScreen() {
       <View style={styles.cloudInfoCard}>
         <Text style={styles.cloudInfoTitle}>How it works</Text>
         <Text style={styles.cloudInfoText}>
-          Your data is stored locally on your device first. Cloud sync backs it up to Supabase so you can restore on a new device.
+          Your data is stored locally on your device first. When cloud sync is enabled, changes are automatically backed up to Supabase so you can restore on a new device.
         </Text>
         <View style={styles.cloudInfoStats}>
           <Text style={styles.cloudInfoStat}>{players.length} players</Text>
@@ -219,31 +255,33 @@ export default function FinanceScreen() {
       </View>
 
       <Pressable
-        style={[styles.cloudButton, styles.cloudButtonSync]}
+        style={[styles.cloudButton, styles.cloudButtonSync, !cloudSyncEnabled && styles.cloudButtonDisabled]}
         onPress={handleCloudSync}
-        disabled={syncStatus === 'syncing'}
+        disabled={syncStatus === 'syncing' || !cloudSyncEnabled}
       >
         <CloudUpload size={22} color="#fff" />
         <View style={styles.cloudButtonTextWrap}>
           <Text style={styles.cloudButtonTitle}>Sync to Cloud</Text>
-          <Text style={styles.cloudButtonSub}>Upload local data to Supabase</Text>
+          <Text style={styles.cloudButtonSub}>{cloudSyncEnabled ? 'Upload local data to Supabase' : 'Enable cloud sync first'}</Text>
         </View>
       </Pressable>
 
       <Pressable
-        style={[styles.cloudButton, styles.cloudButtonRestore]}
+        style={[styles.cloudButton, styles.cloudButtonRestore, !cloudSyncEnabled && styles.cloudButtonDisabled]}
         onPress={handleCloudRestore}
-        disabled={syncStatus === 'syncing'}
+        disabled={syncStatus === 'syncing' || !cloudSyncEnabled}
       >
         <CloudDownload size={22} color="#fff" />
         <View style={styles.cloudButtonTextWrap}>
           <Text style={styles.cloudButtonTitle}>Restore from Cloud</Text>
-          <Text style={styles.cloudButtonSub}>Download data from Supabase</Text>
+          <Text style={styles.cloudButtonSub}>{cloudSyncEnabled ? 'Download data from Supabase' : 'Enable cloud sync first'}</Text>
         </View>
       </Pressable>
 
       <Text style={styles.cloudDisclaimer}>
-        Data syncs automatically when you make changes. Use these buttons for manual full sync/restore.
+        {cloudSyncEnabled
+          ? 'Data syncs automatically when you make changes. Use these buttons for manual full sync/restore.'
+          : 'Turn on Cloud Sync above to enable automatic backup to Supabase.'}
       </Text>
     </ScrollView>
   );
@@ -754,5 +792,37 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingHorizontal: 20,
     lineHeight: 17,
+  },
+  cloudToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  cloudToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  cloudToggleText: {
+    flex: 1,
+    gap: 2,
+  },
+  cloudToggleTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  cloudToggleSubtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  cloudButtonDisabled: {
+    opacity: 0.4,
   },
 });

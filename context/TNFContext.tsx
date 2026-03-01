@@ -15,6 +15,8 @@ import {
   fetchMatchResultsFromSupabase,
   fetchSubsPaymentsFromSupabase,
   fetchSubsSettingsFromSupabase,
+  getCloudSyncEnabled,
+  setCloudSyncEnabled as saveCloudSyncPref,
 } from '@/utils/supabaseSync';
 import { isSupabaseConfigured } from '@/utils/supabase';
 
@@ -32,21 +34,47 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const [manualTeamA, setManualTeamA] = useState<Player[]>([]);
   const [manualTeamB, setManualTeamB] = useState<Player[]>([]);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [cloudSyncEnabled, setCloudSyncEnabled] = useState<boolean>(false);
   const initialSyncDone = useRef(false);
+  const cloudSyncRef = useRef(false);
+
+  useEffect(() => {
+    getCloudSyncEnabled().then(enabled => {
+      console.log('[CloudSync] Preference loaded:', enabled);
+      setCloudSyncEnabled(enabled);
+      cloudSyncRef.current = enabled;
+    }).catch(() => {});
+  }, []);
+
+  const toggleCloudSync = useCallback(async (enabled: boolean) => {
+    setCloudSyncEnabled(enabled);
+    cloudSyncRef.current = enabled;
+    await saveCloudSyncPref(enabled);
+    console.log('[CloudSync] Toggled to:', enabled);
+  }, []);
+
+  const shouldSync = useCallback(() => {
+    return cloudSyncRef.current && isSupabaseConfigured();
+  }, []);
 
   const playersQuery = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['players'],
     queryFn: async () => {
       const stored = await AsyncStorage.getItem(PLAYERS_KEY);
       const localData = stored ? (JSON.parse(stored) as Player[]) : [];
 
-      if (!initialSyncDone.current && localData.length === 0 && isSupabaseConfigured()) {
-        console.log('[Hybrid] Local players empty, trying Supabase...');
-        const remote = await fetchPlayersFromSupabase();
-        if (remote && remote.length > 0) {
-          console.log('[Hybrid] Restored players from Supabase:', remote.length);
-          await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(remote));
-          return remote;
+      if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
+        try {
+          console.log('[Hybrid] Local players empty, trying Supabase...');
+          const remote = await fetchPlayersFromSupabase();
+          if (remote && remote.length > 0) {
+            console.log('[Hybrid] Restored players from Supabase:', remote.length);
+            await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(remote));
+            return remote;
+          }
+        } catch (e) {
+          console.log('[Hybrid] Supabase fetch failed, using local:', e);
         }
       }
       return localData;
@@ -54,17 +82,22 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   });
 
   const restrictionsQuery = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['restrictions'],
     queryFn: async () => {
       const stored = await AsyncStorage.getItem(RESTRICTIONS_KEY);
       const localData = stored ? (JSON.parse(stored) as Restriction[]) : [];
 
-      if (!initialSyncDone.current && localData.length === 0 && isSupabaseConfigured()) {
-        console.log('[Hybrid] Local restrictions empty, trying Supabase...');
-        const remote = await fetchRestrictionsFromSupabase();
-        if (remote && remote.length > 0) {
-          await AsyncStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(remote));
-          return remote;
+      if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
+        try {
+          console.log('[Hybrid] Local restrictions empty, trying Supabase...');
+          const remote = await fetchRestrictionsFromSupabase();
+          if (remote && remote.length > 0) {
+            await AsyncStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(remote));
+            return remote;
+          }
+        } catch (e) {
+          console.log('[Hybrid] Supabase fetch failed, using local:', e);
         }
       }
       return localData;
@@ -72,17 +105,22 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   });
 
   const matchHistoryQuery = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['matchHistory'],
     queryFn: async () => {
       const stored = await AsyncStorage.getItem(MATCH_HISTORY_KEY);
       const localData = stored ? (JSON.parse(stored) as MatchResult[]) : [];
 
-      if (!initialSyncDone.current && localData.length === 0 && isSupabaseConfigured()) {
-        console.log('[Hybrid] Local match history empty, trying Supabase...');
-        const remote = await fetchMatchResultsFromSupabase();
-        if (remote && remote.length > 0) {
-          await AsyncStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(remote));
-          return remote;
+      if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
+        try {
+          console.log('[Hybrid] Local match history empty, trying Supabase...');
+          const remote = await fetchMatchResultsFromSupabase();
+          if (remote && remote.length > 0) {
+            await AsyncStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(remote));
+            return remote;
+          }
+        } catch (e) {
+          console.log('[Hybrid] Supabase fetch failed, using local:', e);
         }
       }
       return localData;
@@ -90,17 +128,22 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   });
 
   const subsPaymentsQuery = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['subsPayments'],
     queryFn: async () => {
       const stored = await AsyncStorage.getItem(SUBS_PAYMENTS_KEY);
       const localData = stored ? (JSON.parse(stored) as SubsPayment[]) : [];
 
-      if (!initialSyncDone.current && localData.length === 0 && isSupabaseConfigured()) {
-        console.log('[Hybrid] Local subs payments empty, trying Supabase...');
-        const remote = await fetchSubsPaymentsFromSupabase();
-        if (remote && remote.length > 0) {
-          await AsyncStorage.setItem(SUBS_PAYMENTS_KEY, JSON.stringify(remote));
-          return remote;
+      if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
+        try {
+          console.log('[Hybrid] Local subs payments empty, trying Supabase...');
+          const remote = await fetchSubsPaymentsFromSupabase();
+          if (remote && remote.length > 0) {
+            await AsyncStorage.setItem(SUBS_PAYMENTS_KEY, JSON.stringify(remote));
+            return remote;
+          }
+        } catch (e) {
+          console.log('[Hybrid] Supabase fetch failed, using local:', e);
         }
       }
       return localData;
@@ -108,17 +151,22 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   });
 
   const subsSettingsQuery = useQuery({
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['subsSettings'],
     queryFn: async () => {
       const stored = await AsyncStorage.getItem(SUBS_SETTINGS_KEY);
       const localData = stored ? (JSON.parse(stored) as SubsSettings) : null;
 
-      if (!initialSyncDone.current && !localData && isSupabaseConfigured()) {
-        console.log('[Hybrid] Local subs settings empty, trying Supabase...');
-        const remote = await fetchSubsSettingsFromSupabase();
-        if (remote) {
-          await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(remote));
-          return remote;
+      if (!initialSyncDone.current && !localData && cloudSyncRef.current && isSupabaseConfigured()) {
+        try {
+          console.log('[Hybrid] Local subs settings empty, trying Supabase...');
+          const remote = await fetchSubsSettingsFromSupabase();
+          if (remote) {
+            await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(remote));
+            return remote;
+          }
+        } catch (e) {
+          console.log('[Hybrid] Supabase fetch failed, using local:', e);
         }
       }
       return localData ?? { costPerGame: 5, lateFee: 1, gameCost: 58 };
@@ -146,7 +194,9 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const { mutate: savePlayers } = useMutation({
     mutationFn: async (players: Player[]) => {
       await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(players));
-      syncPlayersToSupabase(players);
+      if (shouldSync()) {
+        syncPlayersToSupabase(players).catch(e => console.log('[Sync] Players bg sync error:', e));
+      }
       return players;
     },
     onSuccess: () => {
@@ -157,7 +207,9 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const { mutate: saveRestrictions } = useMutation({
     mutationFn: async (restrictions: Restriction[]) => {
       await AsyncStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(restrictions));
-      syncRestrictionsToSupabase(restrictions);
+      if (shouldSync()) {
+        syncRestrictionsToSupabase(restrictions).catch(e => console.log('[Sync] Restrictions bg sync error:', e));
+      }
       return restrictions;
     },
     onSuccess: () => {
@@ -168,7 +220,9 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const { mutate: saveMatchHistory } = useMutation({
     mutationFn: async (history: MatchResult[]) => {
       await AsyncStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(history));
-      syncMatchResultsToSupabase(history);
+      if (shouldSync()) {
+        syncMatchResultsToSupabase(history).catch(e => console.log('[Sync] Match history bg sync error:', e));
+      }
       return history;
     },
     onSuccess: () => {
@@ -179,7 +233,9 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const { mutate: saveSubsPayments } = useMutation({
     mutationFn: async (payments: SubsPayment[]) => {
       await AsyncStorage.setItem(SUBS_PAYMENTS_KEY, JSON.stringify(payments));
-      syncSubsPaymentsToSupabase(payments);
+      if (shouldSync()) {
+        syncSubsPaymentsToSupabase(payments).catch(e => console.log('[Sync] Subs bg sync error:', e));
+      }
       return payments;
     },
     onMutate: async (payments) => {
@@ -194,7 +250,9 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const { mutate: saveSubsSettings } = useMutation({
     mutationFn: async (settings: SubsSettings) => {
       await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(settings));
-      syncSubsSettingsToSupabase(settings);
+      if (shouldSync()) {
+        syncSubsSettingsToSupabase(settings).catch(e => console.log('[Sync] Settings bg sync error:', e));
+      }
       return settings;
     },
     onSuccess: () => {
@@ -214,6 +272,10 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const forceCloudSync = useCallback(async () => {
     if (!isSupabaseConfigured()) {
       console.log('[Sync] Supabase not configured');
+      return;
+    }
+    if (!cloudSyncRef.current) {
+      console.log('[Sync] Cloud sync disabled');
       return;
     }
     setSyncStatus('syncing');
@@ -237,6 +299,10 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const forceCloudRestore = useCallback(async () => {
     if (!isSupabaseConfigured()) {
       console.log('[Restore] Supabase not configured');
+      return;
+    }
+    if (!cloudSyncRef.current) {
+      console.log('[Restore] Cloud sync disabled');
       return;
     }
     setSyncStatus('syncing');
@@ -650,6 +716,8 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     subsPayments,
     subsSettings,
     syncStatus,
+    cloudSyncEnabled,
+    toggleCloudSync,
     isLoading: playersQuery.isLoading || restrictionsQuery.isLoading || matchHistoryQuery.isLoading,
     addPlayer,
     bulkAddPlayers,

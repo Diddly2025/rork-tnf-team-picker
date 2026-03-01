@@ -1,5 +1,35 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 import { Player, Restriction, MatchResult, SubsPayment, SubsSettings } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const CLOUD_SYNC_KEY = 'tnf_cloud_sync_enabled';
+
+export async function getCloudSyncEnabled(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(CLOUD_SYNC_KEY);
+    return val === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function setCloudSyncEnabled(enabled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CLOUD_SYNC_KEY, enabled ? 'true' : 'false');
+  } catch (e) {
+    console.log('[CloudSync] Failed to save preference:', e);
+  }
+}
+
+function safeSyncCall(fn: () => Promise<void>): void {
+  fn().catch(e => {
+    console.log('[Supabase Sync] Background sync error (non-fatal):', e);
+  });
+}
+
+export function fireAndForgetSync(fn: () => Promise<void>): void {
+  safeSyncCall(fn);
+}
 
 export async function syncPlayersToSupabase(players: Player[]): Promise<void> {
   if (!isSupabaseConfigured()) return;
