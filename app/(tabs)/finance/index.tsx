@@ -6,6 +6,8 @@ import {
   FlatList,
   Pressable,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {
   PiggyBank,
@@ -16,12 +18,16 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  Cloud,
+  CloudUpload,
+  CloudDownload,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
-import { Player, MatchResult } from '@/types';
 import Colors from '@/constants/colors';
 
-type ActiveTab = 'kitty' | 'players';
+type ActiveTab = 'kitty' | 'players' | 'cloud';
 
 export default function FinanceScreen() {
   const {
@@ -32,6 +38,10 @@ export default function FinanceScreen() {
     getKittyBalance,
     getPlayerTotalPaid,
     getPlayerBalance,
+    subsPayments,
+    forceCloudSync,
+    forceCloudRestore,
+    syncStatus,
   } = useTNF();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('kitty');
@@ -45,15 +55,10 @@ export default function FinanceScreen() {
     return matchHistory.reduce((sum, m) => sum + m.playerIds.length * subsSettings.costPerGame, 0);
   }, [matchHistory, subsSettings.costPerGame]);
 
-  const sortedMatches = useMemo(() => {
-    return [...matchHistory].sort((a, b) => b.createdAt - a.createdAt);
-  }, [matchHistory]);
-
   const sortedPlayersByPaid = useMemo(() => {
     return [...players].sort((a, b) => getPlayerTotalPaid(b.id) - getPlayerTotalPaid(a.id));
   }, [players, getPlayerTotalPaid]);
 
-  let runningKitty = 0;
   const matchesWithRunning = useMemo(() => {
     let running = 0;
     return [...matchHistory]
@@ -151,6 +156,96 @@ export default function FinanceScreen() {
         );
       }}
     />
+  );
+
+  const handleCloudSync = useCallback(() => {
+    Alert.alert(
+      'Sync to Cloud',
+      'This will upload all your local data to Supabase. Any existing cloud data will be overwritten.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sync', onPress: () => forceCloudSync() },
+      ]
+    );
+  }, [forceCloudSync]);
+
+  const handleCloudRestore = useCallback(() => {
+    Alert.alert(
+      'Restore from Cloud',
+      'This will download all data from Supabase and replace your local data. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: () => forceCloudRestore(),
+        },
+      ]
+    );
+  }, [forceCloudRestore]);
+
+  const renderCloudTab = () => (
+    <ScrollView contentContainerStyle={styles.cloudContent}>
+      <View style={styles.cloudStatusCard}>
+        {syncStatus === 'syncing' ? (
+          <ActivityIndicator size="small" color={Colors.gold} />
+        ) : syncStatus === 'synced' ? (
+          <CheckCircle size={24} color={Colors.success} />
+        ) : syncStatus === 'error' ? (
+          <AlertCircle size={24} color={Colors.danger} />
+        ) : (
+          <Cloud size={24} color={Colors.textMuted} />
+        )}
+        <Text style={styles.cloudStatusText}>
+          {syncStatus === 'syncing' ? 'Syncing...' :
+           syncStatus === 'synced' ? 'Last sync completed' :
+           syncStatus === 'error' ? 'Sync failed' :
+           'Not synced yet'}
+        </Text>
+      </View>
+
+      <View style={styles.cloudInfoCard}>
+        <Text style={styles.cloudInfoTitle}>How it works</Text>
+        <Text style={styles.cloudInfoText}>
+          Your data is stored locally on your device first. Cloud sync backs it up to Supabase so you can restore on a new device.
+        </Text>
+        <View style={styles.cloudInfoStats}>
+          <Text style={styles.cloudInfoStat}>{players.length} players</Text>
+          <View style={styles.cloudInfoDot} />
+          <Text style={styles.cloudInfoStat}>{matchHistory.length} matches</Text>
+          <View style={styles.cloudInfoDot} />
+          <Text style={styles.cloudInfoStat}>{subsPayments.length} payments</Text>
+        </View>
+      </View>
+
+      <Pressable
+        style={[styles.cloudButton, styles.cloudButtonSync]}
+        onPress={handleCloudSync}
+        disabled={syncStatus === 'syncing'}
+      >
+        <CloudUpload size={22} color="#fff" />
+        <View style={styles.cloudButtonTextWrap}>
+          <Text style={styles.cloudButtonTitle}>Sync to Cloud</Text>
+          <Text style={styles.cloudButtonSub}>Upload local data to Supabase</Text>
+        </View>
+      </Pressable>
+
+      <Pressable
+        style={[styles.cloudButton, styles.cloudButtonRestore]}
+        onPress={handleCloudRestore}
+        disabled={syncStatus === 'syncing'}
+      >
+        <CloudDownload size={22} color="#fff" />
+        <View style={styles.cloudButtonTextWrap}>
+          <Text style={styles.cloudButtonTitle}>Restore from Cloud</Text>
+          <Text style={styles.cloudButtonSub}>Download data from Supabase</Text>
+        </View>
+      </Pressable>
+
+      <Text style={styles.cloudDisclaimer}>
+        Data syncs automatically when you make changes. Use these buttons for manual full sync/restore.
+      </Text>
+    </ScrollView>
   );
 
   const renderPlayersTab = () => (
@@ -266,9 +361,20 @@ export default function FinanceScreen() {
             Players
           </Text>
         </Pressable>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'cloud' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('cloud')}
+        >
+          <Cloud size={14} color={activeTab === 'cloud' ? Colors.background : Colors.textSecondary} />
+          <Text style={[styles.tabBtnText, activeTab === 'cloud' && styles.tabBtnTextActive]}>
+            Cloud
+          </Text>
+        </Pressable>
       </View>
 
-      {activeTab === 'kitty' ? renderKittyTab() : renderPlayersTab()}
+      {activeTab === 'kitty' && renderKittyTab()}
+      {activeTab === 'players' && renderPlayersTab()}
+      {activeTab === 'cloud' && renderCloudTab()}
     </View>
   );
 }
@@ -559,5 +665,94 @@ const styles = StyleSheet.create({
   },
   negText: {
     color: Colors.danger,
+  },
+  cloudContent: {
+    padding: 16,
+    paddingBottom: 100,
+    gap: 14,
+  },
+  cloudStatusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  cloudStatusText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  cloudInfoCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    gap: 8,
+  },
+  cloudInfoTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  cloudInfoText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+  },
+  cloudInfoStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  cloudInfoStat: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.gold,
+  },
+  cloudInfoDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.textMuted,
+  },
+  cloudButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    borderRadius: 14,
+    gap: 14,
+  },
+  cloudButtonSync: {
+    backgroundColor: '#2563eb',
+  },
+  cloudButtonRestore: {
+    backgroundColor: '#059669',
+  },
+  cloudButtonTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  cloudButtonTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#fff',
+  },
+  cloudButtonSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+  },
+  cloudDisclaimer: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 20,
+    lineHeight: 17,
   },
 });
