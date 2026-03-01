@@ -4,6 +4,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo } from 'react';
 import { Player, Restriction, TeamOption, MatchResult, SubsPayment, SubsSettings } from '@/types';
 import { generateTeamOptions } from '@/utils/teamGenerator';
+import { isSupabaseConfigured } from '@/utils/supabase';
+import {
+  syncPlayersToSupabase,
+  syncRestrictionsToSupabase,
+  syncMatchResultsToSupabase,
+  syncSubsPaymentsToSupabase,
+  syncSubsSettingsToSupabase,
+  fetchPlayersFromSupabase,
+  fetchRestrictionsFromSupabase,
+  fetchMatchResultsFromSupabase,
+  fetchSubsPaymentsFromSupabase,
+  fetchSubsSettingsFromSupabase,
+} from '@/utils/supabaseSync';
+import { migrateLocalPhotosToCloud } from '@/utils/photoStorage';
 
 
 const PLAYERS_KEY = 'tnf_players';
@@ -126,14 +140,96 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [subsSettingsQuery.data]);
 
   const forceCloudSync = useCallback(async () => {
-    console.log('[Sync] Cloud sync not available (Supabase removed)');
-    setSyncStatus('idle');
-  }, []);
+    if (!isSupabaseConfigured()) {
+      console.log('[Sync] Supabase not configured');
+      setSyncStatus('error');
+      throw new Error('Supabase is not configured. Check your environment variables.');
+    }
+    try {
+      setSyncStatus('syncing');
+      console.log('[Sync] Starting cloud sync...');
+
+      const photoUpdates = await migrateLocalPhotosToCloud(players);
+      let updatedPlayers = players;
+      if (photoUpdates.size > 0) {
+        updatedPlayers = players.map(p => {
+          const newPhoto = photoUpdates.get(p.id);
+          return newPhoto ? { ...p, photo: newPhoto } : p;
+        });
+        await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(updatedPlayers));
+        queryClient.setQueryData(['players'], updatedPlayers);
+        console.log('[Sync] Updated', photoUpdates.size, 'player photos to cloud URLs');
+      }
+
+      await Promise.all([
+        syncPlayersToSupabase(updatedPlayers),
+        syncRestrictionsToSupabase(restrictions),
+        syncMatchResultsToSupabase(matchHistory),
+        syncSubsPaymentsToSupabase(subsPayments),
+        syncSubsSettingsToSupabase(subsSettings),
+      ]);
+
+      setSyncStatus('synced');
+      console.log('[Sync] Cloud sync complete');
+    } catch (err) {
+      console.error('[Sync] Cloud sync failed:', err);
+      setSyncStatus('error');
+      throw err;
+    }
+  }, [players, restrictions, matchHistory, subsPayments, subsSettings, queryClient]);
 
   const forceCloudRestore = useCallback(async () => {
-    console.log('[Restore] Cloud restore not available (Supabase removed)');
-    setSyncStatus('idle');
-  }, []);
+    if (!isSupabaseConfigured()) {
+      console.log('[Restore] Supabase not configured');
+      setSyncStatus('error');
+      throw new Error('Supabase is not configured. Check your environment variables.');
+    }
+    try {
+      setSyncStatus('syncing');
+      console.log('[Restore] Starting cloud restore...');
+
+      const [cloudPlayers, cloudRestrictions, cloudMatches, cloudPayments, cloudSettings] = await Promise.all([
+        fetchPlayersFromSupabase(),
+        fetchRestrictionsFromSupabase(),
+        fetchMatchResultsFromSupabase(),
+        fetchSubsPaymentsFromSupabase(),
+        fetchSubsSettingsFromSupabase(),
+      ]);
+
+      if (cloudPlayers) {
+        await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(cloudPlayers));
+        queryClient.setQueryData(['players'], cloudPlayers);
+        console.log('[Restore] Restored', cloudPlayers.length, 'players');
+      }
+      if (cloudRestrictions) {
+        await AsyncStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(cloudRestrictions));
+        queryClient.setQueryData(['restrictions'], cloudRestrictions);
+        console.log('[Restore] Restored', cloudRestrictions.length, 'restrictions');
+      }
+      if (cloudMatches) {
+        await AsyncStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(cloudMatches));
+        queryClient.setQueryData(['matchHistory'], cloudMatches);
+        console.log('[Restore] Restored', cloudMatches.length, 'match results');
+      }
+      if (cloudPayments) {
+        await AsyncStorage.setItem(SUBS_PAYMENTS_KEY, JSON.stringify(cloudPayments));
+        queryClient.setQueryData(['subsPayments'], cloudPayments);
+        console.log('[Restore] Restored', cloudPayments.length, 'subs payments');
+      }
+      if (cloudSettings) {
+        await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(cloudSettings));
+        queryClient.setQueryData(['subsSettings'], cloudSettings);
+        console.log('[Restore] Restored subs settings');
+      }
+
+      setSyncStatus('synced');
+      console.log('[Restore] Cloud restore complete');
+    } catch (err) {
+      console.error('[Restore] Cloud restore failed:', err);
+      setSyncStatus('error');
+      throw err;
+    }
+  }, [queryClient]);
 
   const getPlayerAppearances = useCallback((playerId: string) => {
     return matchHistory.filter(m => m.playerIds.includes(playerId)).length;
