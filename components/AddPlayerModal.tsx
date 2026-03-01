@@ -11,12 +11,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
-import { X, Camera, Upload } from 'lucide-react-native';
+import { X, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Player, Position } from '@/types';
-import { uploadPlayerPhoto } from '@/utils/photoStorage';
 import Colors from '@/constants/colors';
 
 interface AddPlayerModalProps {
@@ -48,9 +46,6 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
     }
   }, [editPlayer, visible]);
 
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -76,30 +71,13 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
       return;
     }
 
-    setSaving(true);
-    try {
-      let finalPhoto = photo;
-      if (photo && !photo.startsWith('http')) {
-        setUploading(true);
-        const tempId = editPlayer?.id ?? `player-${Date.now()}`;
-        finalPhoto = await uploadPlayerPhoto(photo, tempId);
-        setUploading(false);
-      }
-
-      onSave({
-        name: name.trim(),
-        position,
-        rating: ratingNum,
-        photo: finalPhoto,
-      });
-      onClose();
-    } catch (e) {
-      console.log('[AddPlayerModal] Save error:', e);
-      Alert.alert('Error', 'Failed to save player photo. Please try again.');
-    } finally {
-      setSaving(false);
-      setUploading(false);
-    }
+    onSave({
+      name: name.trim(),
+      position,
+      rating: ratingNum,
+      photo,
+    });
+    onClose();
   };
 
   return (
@@ -124,14 +102,7 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <Pressable style={styles.photoSection} onPress={pickImage} disabled={uploading}>
               {photo ? (
-                <View>
-                  <Image source={{ uri: photo }} style={styles.photoPreview} />
-                  {photo.startsWith('http') && (
-                    <View style={styles.cloudBadge}>
-                      <Upload size={10} color="#fff" />
-                    </View>
-                  )}
-                </View>
+                <Image source={{ uri: photo }} style={styles.photoPreview} />
               ) : (
                 <View style={styles.photoPlaceholder}>
                   <Camera size={32} color={Colors.gold} />
@@ -188,19 +159,10 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
             </View>
           </ScrollView>
 
-          <Pressable style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={handleSave} disabled={saving}>
-            {saving ? (
-              <View style={styles.savingRow}>
-                <ActivityIndicator size="small" color={Colors.background} />
-                <Text style={styles.saveButtonText}>
-                  {uploading ? 'Uploading Photo...' : 'Saving...'}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.saveButtonText}>
-                {editPlayer ? 'Update Player' : 'Add Player'}
-              </Text>
-            )}
+          <Pressable style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>
+              {editPlayer ? 'Update Player' : 'Add Player'}
+            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -322,23 +284,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700' as const,
   },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  savingRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-  },
-  cloudBadge: {
-    position: 'absolute' as const,
-    bottom: 4,
-    left: 4,
-    backgroundColor: '#16a34a',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
+
 });

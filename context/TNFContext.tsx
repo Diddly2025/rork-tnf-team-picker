@@ -17,7 +17,6 @@ import {
   fetchSubsPaymentsFromSupabase,
   fetchSubsSettingsFromSupabase,
 } from '@/utils/supabaseSync';
-import { migrateLocalPhotosToCloud } from '@/utils/photoStorage';
 
 
 const PLAYERS_KEY = 'tnf_players';
@@ -149,20 +148,8 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       setSyncStatus('syncing');
       console.log('[Sync] Starting cloud sync...');
 
-      const photoUpdates = await migrateLocalPhotosToCloud(players);
-      let updatedPlayers = players;
-      if (photoUpdates.size > 0) {
-        updatedPlayers = players.map(p => {
-          const newPhoto = photoUpdates.get(p.id);
-          return newPhoto ? { ...p, photo: newPhoto } : p;
-        });
-        await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(updatedPlayers));
-        queryClient.setQueryData(['players'], updatedPlayers);
-        console.log('[Sync] Updated', photoUpdates.size, 'player photos to cloud URLs');
-      }
-
       await Promise.all([
-        syncPlayersToSupabase(updatedPlayers),
+        syncPlayersToSupabase(players),
         syncRestrictionsToSupabase(restrictions),
         syncMatchResultsToSupabase(matchHistory),
         syncSubsPaymentsToSupabase(subsPayments),
