@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Player, Restriction, TeamOption, MatchResult, SubsPayment, SubsSettings } from '@/types';
+import { Player, Restriction, TeamOption, MatchResult, SubsPayment, SubsSettings, Expense } from '@/types';
 import { generateTeamOptions } from '@/utils/teamGenerator';
 import {
   syncPlayersToSupabase,
@@ -25,6 +25,7 @@ const RESTRICTIONS_KEY = 'tnf_restrictions';
 const MATCH_HISTORY_KEY = 'tnf_match_history';
 const SUBS_PAYMENTS_KEY = 'tnf_subs_payments';
 const SUBS_SETTINGS_KEY = 'tnf_subs_settings';
+const EXPENSES_KEY = 'tnf_expenses';
 const SYNC_TIMESTAMP_KEY = 'tnf_last_sync';
 
 export const [TNFProvider, useTNF] = createContextHook(() => {
@@ -150,6 +151,14 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     },
   });
 
+  const expensesQuery = useQuery({
+    queryKey: ['expenses'],
+    queryFn: async () => {
+      const stored = await AsyncStorage.getItem(EXPENSES_KEY);
+      return stored ? (JSON.parse(stored) as Expense[]) : [];
+    },
+  });
+
   const subsSettingsQuery = useQuery({
     // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['subsSettings'],
@@ -247,6 +256,20 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     },
   });
 
+  const { mutate: saveExpenses } = useMutation({
+    mutationFn: async (expenses: Expense[]) => {
+      await AsyncStorage.setItem(EXPENSES_KEY, JSON.stringify(expenses));
+      return expenses;
+    },
+    onMutate: async (expenses) => {
+      await queryClient.cancelQueries({ queryKey: ['expenses'] });
+      queryClient.setQueryData(['expenses'], expenses);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['expenses'], data);
+    },
+  });
+
   const { mutate: saveSubsSettings } = useMutation({
     mutationFn: async (settings: SubsSettings) => {
       await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(settings));
@@ -264,6 +287,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const restrictions = useMemo(() => restrictionsQuery.data ?? [], [restrictionsQuery.data]);
   const matchHistory = useMemo(() => matchHistoryQuery.data ?? [], [matchHistoryQuery.data]);
   const subsPayments = useMemo(() => subsPaymentsQuery.data ?? [], [subsPaymentsQuery.data]);
+  const expenses = useMemo(() => expensesQuery.data ?? [], [expensesQuery.data]);
   const subsSettings = useMemo(() => {
     const defaults = { costPerGame: 5, lateFee: 1, gameCost: 58 };
     return { ...defaults, ...(subsSettingsQuery.data ?? {}) };
@@ -441,13 +465,18 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       .reduce((sum, p) => sum + p.amount, 0);
   }, [subsPayments]);
 
+  const getTotalExpenses = useCallback(() => {
+    return expenses.reduce((sum, e) => sum + e.amount, 0);
+  }, [expenses]);
+
   const getKittyBalance = useCallback(() => {
     const totalCredits = subsPayments
       .filter(p => p.type === 'credit')
       .reduce((sum, p) => sum + p.amount, 0);
     const totalGameCosts = matchHistory.length * subsSettings.gameCost;
-    return totalCredits - totalGameCosts;
-  }, [subsPayments, matchHistory, subsSettings.gameCost]);
+    const totalExp = expenses.reduce((sum, e) => sum + e.amount, 0);
+    return totalCredits - totalGameCosts - totalExp;
+  }, [subsPayments, matchHistory, subsSettings.gameCost, expenses]);
 
   const getTotalOutstanding = useCallback(() => {
     const total = players.reduce((sum, p) => {
@@ -516,6 +545,20 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     };
     saveSubsPayments([voidPayment, ...subsPayments]);
   }, [subsPayments, subsSettings.costPerGame, saveSubsPayments]);
+
+  const addExpense = useCallback((expense: Omit<Expense, 'id' | 'createdAt'>) => {
+    const newExpense: Expense = {
+      ...expense,
+      id: `expense-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: Date.now(),
+    };
+    saveExpenses([newExpense, ...expenses]);
+  }, [expenses, saveExpenses]);
+
+  const deleteExpense = useCallback((id: string) => {
+    const filtered = expenses.filter(e => e.id !== id);
+    saveExpenses(filtered);
+  }, [expenses, saveExpenses]);
 
   const updateSubsSettings = useCallback((settings: SubsSettings) => {
     saveSubsSettings(settings);
@@ -757,6 +800,10 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     clearManualTeams,
     buildManualTeamOption,
     getExportData,
+    expenses,
+    addExpense,
+    deleteExpense,
+    getTotalExpenses,
     forceCloudSync,
     forceCloudRestore,
   };

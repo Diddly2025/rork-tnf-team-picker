@@ -9,13 +9,16 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import {
   PiggyBank,
   TrendingUp,
   TrendingDown,
   Users,
-  PoundSterling,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -24,11 +27,33 @@ import {
   CloudDownload,
   CheckCircle,
   AlertCircle,
+  ShoppingBag,
+  Plus,
+  Trash2,
+  X,
+  Tag,
 } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import Colors from '@/constants/colors';
+import { Expense } from '@/types';
 
-type ActiveTab = 'kitty' | 'players' | 'cloud';
+type ActiveTab = 'kitty' | 'players' | 'expenses' | 'cloud';
+
+type ExpenseCategory = Expense['category'];
+
+const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; icon: string }[] = [
+  { value: 'equipment', label: 'Equipment', icon: 'bibs, balls, cones' },
+  { value: 'pitch', label: 'Pitch', icon: 'booking, maintenance' },
+  { value: 'social', label: 'Social', icon: 'food, drinks, events' },
+  { value: 'other', label: 'Other', icon: 'miscellaneous' },
+];
+
+const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
+  equipment: '#2563eb',
+  pitch: '#059669',
+  social: '#d97706',
+  other: '#7c3aed',
+};
 
 export default function FinanceScreen() {
   const {
@@ -40,6 +65,10 @@ export default function FinanceScreen() {
     getPlayerTotalPaid,
     getPlayerBalance,
     subsPayments,
+    expenses,
+    addExpense,
+    deleteExpense,
+    getTotalExpenses,
     forceCloudSync,
     forceCloudRestore,
     syncStatus,
@@ -49,14 +78,15 @@ export default function FinanceScreen() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('kitty');
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [expenseDesc, setExpenseDesc] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseCategory, setExpenseCategory] = useState<ExpenseCategory>('equipment');
 
   const totalCollected = getTotalCollected();
   const kittyBalance = getKittyBalance();
   const totalGameCosts = matchHistory.length * subsSettings.gameCost;
-
-  const totalExpectedSubs = useMemo(() => {
-    return matchHistory.reduce((sum, m) => sum + m.playerIds.length * subsSettings.costPerGame, 0);
-  }, [matchHistory, subsSettings.costPerGame]);
+  const totalExpenses = getTotalExpenses();
 
   const sortedPlayersByPaid = useMemo(() => {
     return [...players].sort((a, b) => getPlayerTotalPaid(b.id) - getPlayerTotalPaid(a.id));
@@ -80,6 +110,53 @@ export default function FinanceScreen() {
   const toggleMatch = useCallback((id: string) => {
     setExpandedMatchId(prev => prev === id ? null : id);
   }, []);
+
+  const handleAddExpense = useCallback(() => {
+    const amount = parseFloat(expenseAmount);
+    if (!expenseDesc.trim()) {
+      Alert.alert('Missing Description', 'Please enter what was purchased.');
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount.');
+      return;
+    }
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    addExpense({
+      description: expenseDesc.trim(),
+      amount,
+      category: expenseCategory,
+      date: today,
+    });
+    setExpenseDesc('');
+    setExpenseAmount('');
+    setExpenseCategory('equipment');
+    setShowAddExpense(false);
+    console.log('[Finance] Expense added:', expenseDesc.trim(), amount);
+  }, [expenseDesc, expenseAmount, expenseCategory, addExpense]);
+
+  const handleDeleteExpense = useCallback((expense: Expense) => {
+    Alert.alert(
+      'Delete Expense',
+      `Remove "${expense.description}" (£${expense.amount.toFixed(2)}) from expenses?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteExpense(expense.id) },
+      ]
+    );
+  }, [deleteExpense]);
+
+  const sortedExpenses = useMemo(() => {
+    return [...expenses].sort((a, b) => b.createdAt - a.createdAt);
+  }, [expenses]);
+
+  const expensesByCategory = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    expenses.forEach(e => {
+      grouped[e.category] = (grouped[e.category] ?? 0) + e.amount;
+    });
+    return grouped;
+  }, [expenses]);
 
   const renderKittyTab = () => (
     <FlatList
@@ -286,6 +363,100 @@ export default function FinanceScreen() {
     </ScrollView>
   );
 
+  const renderExpensesTab = () => (
+    <FlatList
+      data={sortedExpenses}
+      keyExtractor={item => item.id}
+      contentContainerStyle={styles.listContent}
+      ListHeaderComponent={
+        <View>
+          {expenses.length > 0 && (
+            <View style={styles.expenseSummaryCard}>
+              <Text style={styles.expenseSummaryTitle}>Breakdown by Category</Text>
+              {EXPENSE_CATEGORIES.map(cat => {
+                const catTotal = expensesByCategory[cat.value] ?? 0;
+                if (catTotal === 0) return null;
+                const pct = totalExpenses > 0 ? (catTotal / totalExpenses) * 100 : 0;
+                return (
+                  <View key={cat.value} style={styles.catBreakdownRow}>
+                    <View style={[styles.catDot, { backgroundColor: CATEGORY_COLORS[cat.value] }]} />
+                    <Text style={styles.catBreakdownLabel}>{cat.label}</Text>
+                    <View style={styles.catBarOuter}>
+                      <View
+                        style={[
+                          styles.catBarInner,
+                          { width: `${Math.max(pct, 4)}%`, backgroundColor: CATEGORY_COLORS[cat.value] },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.catBreakdownValue}>£{catTotal.toFixed(2)}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+          <View style={styles.expensesHeaderRow}>
+            <View>
+              <Text style={styles.sectionTitle}>All Expenses</Text>
+              <Text style={styles.sectionSubtitle}>{expenses.length} item{expenses.length !== 1 ? 's' : ''} totalling £{totalExpenses.toFixed(2)}</Text>
+            </View>
+            <Pressable
+              style={styles.addExpenseFab}
+              onPress={() => setShowAddExpense(true)}
+            >
+              <Plus size={18} color="#fff" />
+              <Text style={styles.addExpenseFabText}>Add</Text>
+            </Pressable>
+          </View>
+        </View>
+      }
+      ListEmptyComponent={
+        <View style={styles.empty}>
+          <ShoppingBag size={48} color={Colors.textMuted} />
+          <Text style={styles.emptyText}>No expenses recorded</Text>
+          <Pressable
+            style={styles.emptyAddBtn}
+            onPress={() => setShowAddExpense(true)}
+          >
+            <Plus size={16} color={Colors.gold} />
+            <Text style={styles.emptyAddBtnText}>Add your first expense</Text>
+          </Pressable>
+        </View>
+      }
+      renderItem={({ item }) => (
+        <View style={styles.expenseCard}>
+          <View style={[styles.expenseCatStrip, { backgroundColor: CATEGORY_COLORS[item.category] }]} />
+          <View style={styles.expenseCardBody}>
+            <View style={styles.expenseCardTop}>
+              <View style={styles.expenseCardInfo}>
+                <Text style={styles.expenseCardDesc}>{item.description}</Text>
+                <View style={styles.expenseCardMeta}>
+                  <Tag size={11} color={Colors.textMuted} />
+                  <Text style={styles.expenseCardCat}>
+                    {EXPENSE_CATEGORIES.find(c => c.value === item.category)?.label ?? item.category}
+                  </Text>
+                  <View style={styles.matchStatDivider} />
+                  <Calendar size={11} color={Colors.textMuted} />
+                  <Text style={styles.expenseCardDate}>{item.date}</Text>
+                </View>
+              </View>
+              <View style={styles.expenseCardRight}>
+                <Text style={styles.expenseCardAmount}>-£{item.amount.toFixed(2)}</Text>
+                <Pressable
+                  onPress={() => handleDeleteExpense(item)}
+                  hitSlop={10}
+                  style={styles.expenseDeleteBtn}
+                >
+                  <Trash2 size={15} color={Colors.danger} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+    />
+  );
+
   const renderPlayersTab = () => (
     <FlatList
       data={sortedPlayersByPaid}
@@ -363,19 +534,19 @@ export default function FinanceScreen() {
           <View style={styles.metricCard}>
             <TrendingUp size={16} color={Colors.success} />
             <Text style={styles.metricValue}>£{totalCollected.toFixed(2)}</Text>
-            <Text style={styles.metricLabel}>Subs Received</Text>
-          </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricCard}>
-            <PoundSterling size={16} color={Colors.warning} />
-            <Text style={styles.metricValue}>£{totalExpectedSubs.toFixed(2)}</Text>
-            <Text style={styles.metricLabel}>Expected Subs</Text>
+            <Text style={styles.metricLabel}>Subs In</Text>
           </View>
           <View style={styles.metricDivider} />
           <View style={styles.metricCard}>
             <TrendingDown size={16} color={Colors.danger} />
             <Text style={styles.metricValue}>£{totalGameCosts.toFixed(2)}</Text>
-            <Text style={styles.metricLabel}>Game Costs</Text>
+            <Text style={styles.metricLabel}>Pitch Costs</Text>
+          </View>
+          <View style={styles.metricDivider} />
+          <View style={styles.metricCard}>
+            <ShoppingBag size={16} color={'#7c3aed'} />
+            <Text style={styles.metricValue}>£{totalExpenses.toFixed(2)}</Text>
+            <Text style={styles.metricLabel}>Expenses</Text>
           </View>
         </View>
       </View>
@@ -400,6 +571,15 @@ export default function FinanceScreen() {
           </Text>
         </Pressable>
         <Pressable
+          style={[styles.tabBtn, activeTab === 'expenses' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('expenses')}
+        >
+          <ShoppingBag size={14} color={activeTab === 'expenses' ? Colors.background : Colors.textSecondary} />
+          <Text style={[styles.tabBtnText, activeTab === 'expenses' && styles.tabBtnTextActive]}>
+            Expenses
+          </Text>
+        </Pressable>
+        <Pressable
           style={[styles.tabBtn, activeTab === 'cloud' && styles.tabBtnActive]}
           onPress={() => setActiveTab('cloud')}
         >
@@ -412,7 +592,80 @@ export default function FinanceScreen() {
 
       {activeTab === 'kitty' && renderKittyTab()}
       {activeTab === 'players' && renderPlayersTab()}
+      {activeTab === 'expenses' && renderExpensesTab()}
       {activeTab === 'cloud' && renderCloudTab()}
+
+      <Modal
+        visible={showAddExpense}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddExpense(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowAddExpense(false)} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Expense</Text>
+              <Pressable onPress={() => setShowAddExpense(false)} hitSlop={12}>
+                <X size={22} color={Colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.fieldLabel}>Description</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. New bibs, footballs"
+              placeholderTextColor={Colors.textMuted}
+              value={expenseDesc}
+              onChangeText={setExpenseDesc}
+              autoFocus
+            />
+
+            <Text style={styles.fieldLabel}>Amount (£)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="0.00"
+              placeholderTextColor={Colors.textMuted}
+              value={expenseAmount}
+              onChangeText={setExpenseAmount}
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.fieldLabel}>Category</Text>
+            <View style={styles.categoryRow}>
+              {EXPENSE_CATEGORIES.map(cat => (
+                <Pressable
+                  key={cat.value}
+                  style={[
+                    styles.categoryChip,
+                    expenseCategory === cat.value && {
+                      backgroundColor: CATEGORY_COLORS[cat.value],
+                      borderColor: CATEGORY_COLORS[cat.value],
+                    },
+                  ]}
+                  onPress={() => setExpenseCategory(cat.value)}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      expenseCategory === cat.value && styles.categoryChipTextActive,
+                    ]}
+                  >
+                    {cat.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable style={styles.addExpenseButton} onPress={handleAddExpense}>
+              <Text style={styles.addExpenseButtonText}>Add Expense</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -824,5 +1077,222 @@ const styles = StyleSheet.create({
   },
   cloudButtonDisabled: {
     opacity: 0.4,
+  },
+  expenseSummaryCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    gap: 10,
+  },
+  expenseSummaryTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  catBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  catDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  catBreakdownLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    width: 80,
+  },
+  catBarOuter: {
+    flex: 1,
+    height: 8,
+    backgroundColor: Colors.background,
+    borderRadius: 4,
+    overflow: 'hidden' as const,
+  },
+  catBarInner: {
+    height: 8,
+    borderRadius: 4,
+  },
+  catBreakdownValue: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    width: 65,
+    textAlign: 'right' as const,
+  },
+  expensesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  addExpenseFab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.gold,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 5,
+  },
+  addExpenseFabText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: '#fff',
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.gold,
+  },
+  emptyAddBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.gold,
+  },
+  expenseCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    overflow: 'hidden' as const,
+  },
+  expenseCatStrip: {
+    width: 5,
+  },
+  expenseCardBody: {
+    flex: 1,
+    padding: 14,
+  },
+  expenseCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  expenseCardInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  expenseCardDesc: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  expenseCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  expenseCardCat: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  expenseCardDate: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  expenseCardRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+    marginLeft: 12,
+  },
+  expenseCardAmount: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.danger,
+  },
+  expenseDeleteBtn: {
+    padding: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  modalContent: {
+    backgroundColor: Colors.cardBackground,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  textInput: {
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap' as const,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.background,
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  categoryChipTextActive: {
+    color: '#fff',
+  },
+  addExpenseButton: {
+    backgroundColor: Colors.gold,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  addExpenseButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#fff',
   },
 });

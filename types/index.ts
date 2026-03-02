@@ -67,3 +67,12 @@ export interface SubsSettings {
   lateFee: number;
   gameCost: number;
 }
+
+export interface Expense {
+  id: string;
+  description: string;
+  amount: number;
+  category: 'equipment' | 'pitch' | 'social' | 'other';
+  date: string;
+  createdAt: number;
+}
