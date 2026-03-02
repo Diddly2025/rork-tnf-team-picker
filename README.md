@@ -4,7 +4,7 @@
 
 This is a native cross-platform mobile app created with [Rork](https://rork.com)
 
-**Platform**: Native iOS & Android app, exportable to web
+**Platform**: Native iOS & Android app, exportable to web.
 **Framework**: Expo Router + React Native
 
 ## How can I edit this code?
