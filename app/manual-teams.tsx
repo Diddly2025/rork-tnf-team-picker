@@ -1,18 +1,18 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
-  FlatList, 
   Pressable,
   Alert,
   ScrollView,
 } from 'react-native';
 import { useRouter, Stack, RelativePathString } from 'expo-router';
-import { ArrowLeft, Check, X, UserPlus, Minus } from 'lucide-react-native';
+import { ArrowLeft, Check, Minus, LayoutGrid, List } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import PlayerCard from '@/components/PlayerCard';
-import { Player } from '@/types';
+import PitchView from '@/components/PitchView';
+import { Player, Team } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function ManualTeamsScreen() {
@@ -36,6 +36,23 @@ export default function ManualTeamsScreen() {
   }, [selectedPlayers, manualTeamA, manualTeamB]);
 
   const teamOption = buildManualTeamOption();
+  const [viewMode, setViewMode] = useState<'list' | 'pitch'>('list');
+
+  const pitchTeamA: Team = useMemo(() => ({
+    id: 'manual-a',
+    players: manualTeamA,
+    totalRating: manualTeamA.reduce((s, p) => s + p.rating, 0),
+    averageRating: manualTeamA.length > 0 ? Math.round((manualTeamA.reduce((s, p) => s + p.rating, 0) / manualTeamA.length) * 10) / 10 : 0,
+  }), [manualTeamA]);
+
+  const pitchTeamB: Team = useMemo(() => ({
+    id: 'manual-b',
+    players: manualTeamB,
+    totalRating: manualTeamB.reduce((s, p) => s + p.rating, 0),
+    averageRating: manualTeamB.length > 0 ? Math.round((manualTeamB.reduce((s, p) => s + p.rating, 0) / manualTeamB.length) * 10) / 10 : 0,
+  }), [manualTeamB]);
+
+  const bothTeamsHavePlayers = manualTeamA.length > 0 && manualTeamB.length > 0;
 
   const handleConfirm = useCallback(() => {
     if (manualTeamA.length === 0 || manualTeamB.length === 0) {
@@ -100,41 +117,64 @@ export default function ManualTeamsScreen() {
             <ArrowLeft size={24} color={Colors.text} />
           </Pressable>
         ),
+        headerRight: () => bothTeamsHavePlayers ? (
+          <Pressable
+            onPress={() => setViewMode(v => v === 'list' ? 'pitch' : 'list')}
+            style={styles.viewToggle}
+          >
+            {viewMode === 'list' ? (
+              <LayoutGrid size={20} color={Colors.gold} />
+            ) : (
+              <List size={20} color={Colors.gold} />
+            )}
+          </Pressable>
+        ) : null,
       }} />
 
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.teamsRow}>
-          <View style={styles.teamBox}>
-            <View style={[styles.teamHeader, { borderBottomColor: Colors.teamA }]}>
-              <Text style={[styles.teamTitle, { color: Colors.teamA }]}>TEAM A</Text>
-              <Text style={styles.teamCount}>{manualTeamA.length}</Text>
-            </View>
-            {avgA > 0 && <Text style={styles.teamAvg}>AVG: {avgA}</Text>}
-            {manualTeamA.map(renderTeamPlayer)}
-            {manualTeamA.length === 0 && (
-              <Text style={styles.emptyTeamText}>Assign players below</Text>
-            )}
-          </View>
-
-          <View style={styles.teamDivider}>
-            <Text style={styles.vsText}>VS</Text>
+        {viewMode === 'pitch' && bothTeamsHavePlayers ? (
+          <View style={styles.pitchContainer}>
+            <PitchView teamA={pitchTeamA} teamB={pitchTeamB} />
             {teamOption && (
-              <Text style={styles.diffText}>±{teamOption.ratingDifference.toFixed(1)}</Text>
+              <View style={styles.pitchBadge}>
+                <Text style={styles.pitchBadgeText}>±{teamOption.ratingDifference.toFixed(1)}</Text>
+              </View>
             )}
           </View>
-
-          <View style={styles.teamBox}>
-            <View style={[styles.teamHeader, { borderBottomColor: Colors.teamB }]}>
-              <Text style={[styles.teamTitle, { color: Colors.teamB }]}>TEAM B</Text>
-              <Text style={styles.teamCount}>{manualTeamB.length}</Text>
+        ) : (
+          <View style={styles.teamsRow}>
+            <View style={styles.teamBox}>
+              <View style={[styles.teamHeader, { borderBottomColor: Colors.teamA }]}>
+                <Text style={[styles.teamTitle, { color: Colors.teamA }]}>TEAM A</Text>
+                <Text style={styles.teamCount}>{manualTeamA.length}</Text>
+              </View>
+              {avgA > 0 && <Text style={styles.teamAvg}>AVG: {avgA}</Text>}
+              {manualTeamA.map(renderTeamPlayer)}
+              {manualTeamA.length === 0 && (
+                <Text style={styles.emptyTeamText}>Assign players below</Text>
+              )}
             </View>
-            {avgB > 0 && <Text style={styles.teamAvg}>AVG: {avgB}</Text>}
-            {manualTeamB.map(renderTeamPlayer)}
-            {manualTeamB.length === 0 && (
-              <Text style={styles.emptyTeamText}>Assign players below</Text>
-            )}
+
+            <View style={styles.teamDivider}>
+              <Text style={styles.vsText}>VS</Text>
+              {teamOption && (
+                <Text style={styles.diffText}>±{teamOption.ratingDifference.toFixed(1)}</Text>
+              )}
+            </View>
+
+            <View style={styles.teamBox}>
+              <View style={[styles.teamHeader, { borderBottomColor: Colors.teamB }]}>
+                <Text style={[styles.teamTitle, { color: Colors.teamB }]}>TEAM B</Text>
+                <Text style={styles.teamCount}>{manualTeamB.length}</Text>
+              </View>
+              {avgB > 0 && <Text style={styles.teamAvg}>AVG: {avgB}</Text>}
+              {manualTeamB.map(renderTeamPlayer)}
+              {manualTeamB.length === 0 && (
+                <Text style={styles.emptyTeamText}>Assign players below</Text>
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         {unassignedPlayers.length > 0 && (
           <View style={styles.unassignedSection}>
@@ -310,6 +350,34 @@ const styles = StyleSheet.create({
   confirmText: {
     color: Colors.background,
     fontSize: 17,
+    fontWeight: '700' as const,
+  },
+  viewToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  pitchContainer: {
+    marginBottom: 16,
+    position: 'relative',
+  },
+  pitchBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pitchBadgeText: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '700' as const,
   },
 });
