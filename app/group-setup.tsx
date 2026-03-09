@@ -58,7 +58,7 @@ export default function GroupSetupScreen() {
     });
 
     console.log('[GroupSetup] Group created:', groupName.trim(), sport);
-    router.replace('/(tabs)/players');
+    router.replace('/(tabs)/players' as any);
   }, [groupName, sport, customSport, playersPerTeam, playDay, playTime, addGroup, router]);
 
   return (

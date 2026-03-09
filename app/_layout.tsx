@@ -22,6 +22,7 @@ function RootLayoutNav() {
         contentStyle: { backgroundColor: Colors.background },
       }}
     >
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="group-setup" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="manage-groups" options={{ title: 'Your Groups', presentation: 'modal' }} />

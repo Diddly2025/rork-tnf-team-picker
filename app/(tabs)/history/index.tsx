@@ -8,17 +8,28 @@ import {
   Alert,
   Share,
   Platform,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Clock, Trash2, Download, Trophy, Plus, Star, Pencil, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { Clock, Trash2, Download, Trophy, Plus, Star, Pencil, ChevronDown, ChevronUp, ArrowLeftRight, Check } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
-import { MatchResult } from '@/types';
+import { useGroup } from '@/context/GroupContext';
+import { SPORT_CONFIGS, getSportLabel } from '@/constants/sports';
+import { MatchResult, Group } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function HistoryScreen() {
   const router = useRouter();
   const { matchHistory, deleteMatchResult, getExportData, players } = useTNF();
+  const { groups, activeGroup, activeGroupId, setActiveGroup } = useGroup();
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
+  const [showSwitcher, setShowSwitcher] = useState(false);
+
+  const handleSwitchGroup = useCallback((group: Group) => {
+    setActiveGroup(group.id);
+    setShowSwitcher(false);
+    console.log('[History] Switched to group:', group.name);
+  }, [setActiveGroup]);
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds(prev =>
@@ -195,8 +206,74 @@ export default function HistoryScreen() {
   const teamAWins = matchHistory.filter(m => m.scoreA > m.scoreB).length;
   const teamBWins = matchHistory.filter(m => m.scoreB > m.scoreA).length;
 
+  const groupConfig = activeGroup ? SPORT_CONFIGS[activeGroup.sport] : null;
+  const groupLabel = activeGroup
+    ? getSportLabel(activeGroup.sport, activeGroup.customSport)
+    : '';
+
   return (
     <View style={styles.container}>
+      <Pressable
+        style={styles.groupBanner}
+        onPress={() => setShowSwitcher(true)}
+        testID="group-switcher-btn"
+      >
+        <View style={styles.groupBannerLeft}>
+          {groupConfig && <Text style={styles.groupBannerEmoji}>{groupConfig.emoji}</Text>}
+          <View>
+            <Text style={styles.groupBannerName} numberOfLines={1}>
+              {activeGroup?.name ?? 'No Group'}
+            </Text>
+            <Text style={styles.groupBannerSport}>{groupLabel}</Text>
+          </View>
+        </View>
+        {groups.length > 1 && (
+          <View style={styles.switchBtn}>
+            <ArrowLeftRight size={14} color={Colors.gold} />
+            <Text style={styles.switchBtnText}>Switch</Text>
+          </View>
+        )}
+      </Pressable>
+
+      <Modal
+        visible={showSwitcher}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSwitcher(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSwitcher(false)}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Switch Group</Text>
+            {groups.map((g) => {
+              const config = SPORT_CONFIGS[g.sport];
+              const isActive = g.id === activeGroupId;
+              return (
+                <Pressable
+                  key={g.id}
+                  style={[styles.modalGroupRow, isActive && styles.modalGroupRowActive]}
+                  onPress={() => handleSwitchGroup(g)}
+                >
+                  <Text style={styles.modalGroupEmoji}>{config.emoji}</Text>
+                  <View style={styles.modalGroupInfo}>
+                    <Text style={[styles.modalGroupName, isActive && styles.modalGroupNameActive]}>
+                      {g.name}
+                    </Text>
+                    <Text style={styles.modalGroupMeta}>
+                      {getSportLabel(g.sport, g.customSport)} · {g.playersPerTeam}v{g.playersPerTeam}
+                    </Text>
+                  </View>
+                  {isActive && (
+                    <View style={styles.modalCheckmark}>
+                      <Check size={14} color="#fff" />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
+
       {matchHistory.length > 0 && (
         <View style={styles.summaryBar}>
           <View style={styles.summaryItem}>
@@ -495,5 +572,116 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  groupBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  groupBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  groupBannerEmoji: {
+    fontSize: 22,
+  },
+  groupBannerName: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  groupBannerSport: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  switchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(200, 160, 42, 0.1)',
+  },
+  switchBtnText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.gold,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 6,
+    gap: 12,
+  },
+  modalGroupRowActive: {
+    backgroundColor: 'rgba(200, 160, 42, 0.08)',
+  },
+  modalGroupEmoji: {
+    fontSize: 24,
+  },
+  modalGroupInfo: {
+    flex: 1,
+  },
+  modalGroupName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  modalGroupNameActive: {
+    color: Colors.gold,
+  },
+  modalGroupMeta: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  modalCheckmark: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
