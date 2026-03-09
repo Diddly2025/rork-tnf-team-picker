@@ -27,6 +27,7 @@ export default function GroupSetupScreen() {
   const [playersPerTeam, setPlayersPerTeam] = useState('7');
   const [playDay, setPlayDay] = useState('Tuesday');
   const [playTime, setPlayTime] = useState('19:00');
+  const [costPerSession, setCostPerSession] = useState('5');
 
   const handleSportChange = useCallback((s: SportType) => {
     setSport(s);
@@ -48,6 +49,8 @@ export default function GroupSetupScreen() {
       return;
     }
 
+    const cps = parseFloat(costPerSession);
+
     addGroup({
       name: groupName.trim(),
       sport,
@@ -55,11 +58,12 @@ export default function GroupSetupScreen() {
       playersPerTeam: ppt,
       playDay,
       playTime,
+      costPerSession: isNaN(cps) || cps < 0 ? 5 : cps,
     });
 
     console.log('[GroupSetup] Group created:', groupName.trim(), sport);
     router.replace('/(tabs)/players' as any);
-  }, [groupName, sport, customSport, playersPerTeam, playDay, playTime, addGroup, router]);
+  }, [groupName, sport, customSport, playersPerTeam, playDay, playTime, costPerSession, addGroup, router]);
 
   return (
     <View style={styles.container}>
@@ -165,6 +169,21 @@ export default function GroupSetupScreen() {
               value={playTime}
               onChangeText={setPlayTime}
               placeholder="e.g. 19:00"
+              placeholderTextColor={Colors.textMuted}
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Cost Per Session (£)</Text>
+            <Text style={styles.hint}>
+              How much each player pays per session
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={costPerSession}
+              onChangeText={setCostPerSession}
+              keyboardType="decimal-pad"
+              placeholder="5.00"
               placeholderTextColor={Colors.textMuted}
             />
           </View>

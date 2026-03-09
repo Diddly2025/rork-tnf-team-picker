@@ -15,9 +15,12 @@ import {
 import {
   Wallet, Plus, X, ChevronRight, TrendingUp, TrendingDown,
   Settings, Trash2, PoundSterling, ChevronLeft, AlertTriangle, Coins, UserPlus, Ban,
+  ArrowLeftRight, Check,
 } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
-import { Player, SubsPayment } from '@/types';
+import { useGroup } from '@/context/GroupContext';
+import { SPORT_CONFIGS, getSportLabel } from '@/constants/sports';
+import { Player, SubsPayment, Group } from '@/types';
 import Colors from '@/constants/colors';
 
 type Tab = 'overview' | 'history';
@@ -51,6 +54,8 @@ export default function SubsScreen() {
     matchHistory,
   } = useTNF();
 
+  const { groups, activeGroup, activeGroupId, setActiveGroup } = useGroup();
+
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [addPaymentVisible, setAddPaymentVisible] = useState(false);
@@ -64,11 +69,24 @@ export default function SubsScreen() {
   const [gameCostAmount, setGameCostAmount] = useState(String(subsSettings.gameCost));
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [guestName, setGuestName] = useState('');
+  const [showSwitcher, setShowSwitcher] = useState(false);
 
   const totalCollected = getTotalCollected();
   const totalOutstanding = getTotalOutstanding();
   const kittyBalance = getKittyBalance();
   const totalGameCosts = matchHistory.length * subsSettings.gameCost;
+  const costPerSession = activeGroup?.costPerSession ?? subsSettings.costPerGame;
+
+  const groupConfig = activeGroup ? SPORT_CONFIGS[activeGroup.sport] : null;
+  const groupLabel = activeGroup
+    ? getSportLabel(activeGroup.sport, activeGroup.customSport)
+    : '';
+
+  const handleSwitchGroup = useCallback((group: Group) => {
+    setActiveGroup(group.id);
+    setShowSwitcher(false);
+    console.log('[Subs] Switched to group:', group.name);
+  }, [setActiveGroup]);
 
   const sortedPlayers = useMemo(() => {
     return [...players].sort((a, b) => {
@@ -300,6 +318,67 @@ export default function SubsScreen() {
 
   return (
     <View style={styles.container}>
+      <Pressable
+        style={styles.groupBanner}
+        onPress={() => setShowSwitcher(true)}
+        testID="subs-group-switcher-btn"
+      >
+        <View style={styles.groupBannerLeft}>
+          {groupConfig && <Text style={styles.groupBannerEmoji}>{groupConfig.emoji}</Text>}
+          <View style={styles.groupBannerTextWrap}>
+            <Text style={styles.groupBannerName} numberOfLines={1}>
+              {activeGroup?.name ?? 'No Group'}
+            </Text>
+            <Text style={styles.groupBannerSport}>{groupLabel}</Text>
+          </View>
+        </View>
+        {groups.length > 1 && (
+          <View style={styles.switchBtn}>
+            <ArrowLeftRight size={14} color={Colors.gold} />
+            <Text style={styles.switchBtnText}>Switch</Text>
+          </View>
+        )}
+      </Pressable>
+
+      <Modal
+        visible={showSwitcher}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSwitcher(false)}
+      >
+        <Pressable style={styles.switcherOverlay} onPress={() => setShowSwitcher(false)}>
+          <View style={styles.switcherContent}>
+            <Text style={styles.switcherTitle}>Switch Group</Text>
+            {groups.map((g) => {
+              const config = SPORT_CONFIGS[g.sport];
+              const isActive = g.id === activeGroupId;
+              return (
+                <Pressable
+                  key={g.id}
+                  style={[styles.switcherRow, isActive && styles.switcherRowActive]}
+                  onPress={() => handleSwitchGroup(g)}
+                >
+                  <Text style={styles.switcherEmoji}>{config.emoji}</Text>
+                  <View style={styles.switcherInfo}>
+                    <Text style={[styles.switcherName, isActive && styles.switcherNameActive]}>
+                      {g.name}
+                    </Text>
+                    <Text style={styles.switcherMeta}>
+                      {getSportLabel(g.sport, g.customSport)} · {g.playersPerTeam}v{g.playersPerTeam}
+                    </Text>
+                  </View>
+                  {isActive && (
+                    <View style={styles.switcherCheck}>
+                      <Check size={14} color="#fff" />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
+
       <View style={styles.summaryCard}>
         <View style={styles.summaryItem}>
           <PoundSterling size={18} color={Colors.success} />
@@ -317,8 +396,8 @@ export default function SubsScreen() {
         <View style={styles.summaryDivider} />
         <View style={styles.summaryItem}>
           <Settings size={18} color={Colors.gold} />
-          <Text style={styles.summaryValue}>£{subsSettings.costPerGame.toFixed(2)}</Text>
-          <Text style={styles.summaryLabel}>Per Game</Text>
+          <Text style={styles.summaryValue}>£{costPerSession.toFixed(2)}</Text>
+          <Text style={styles.summaryLabel}>Per Session</Text>
         </View>
       </View>
 
@@ -397,7 +476,6 @@ export default function SubsScreen() {
         <Settings size={22} color={Colors.background} />
       </Pressable>
 
-      {/* Player Detail Modal */}
       <Modal
         visible={modalVisible}
         animationType="slide"
@@ -498,7 +576,6 @@ export default function SubsScreen() {
         </View>
       </Modal>
 
-      {/* Add Payment Modal - with KeyboardAvoidingView */}
       <Modal
         visible={addPaymentVisible}
         animationType="slide"
@@ -524,7 +601,6 @@ export default function SubsScreen() {
               </View>
 
               <View style={styles.addPaymentBody}>
-                {/* Date Picker */}
                 <View style={styles.datePicker}>
                   <Pressable style={styles.dateArrowBtn} onPress={() => adjustDate(-1)}>
                     <ChevronLeft size={20} color={Colors.text} />
@@ -538,7 +614,6 @@ export default function SubsScreen() {
                   </Pressable>
                 </View>
 
-                {/* Amount */}
                 <View style={styles.inputRow}>
                   <Text style={styles.inputPrefix}>£</Text>
                   <TextInput
@@ -553,7 +628,6 @@ export default function SubsScreen() {
                   />
                 </View>
 
-                {/* Guest Name (only for guest type) */}
                 {paymentFormType === 'guest' && (
                   <TextInput
                     style={styles.descInput}
@@ -566,7 +640,6 @@ export default function SubsScreen() {
                   />
                 )}
 
-                {/* Description */}
                 <TextInput
                   style={styles.descInput}
                   value={description}
@@ -595,7 +668,6 @@ export default function SubsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Settings Modal */}
       <Modal
         visible={settingsVisible}
         animationType="slide"
@@ -681,11 +753,125 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  groupBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  groupBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  groupBannerTextWrap: {
+    flex: 1,
+  },
+  groupBannerEmoji: {
+    fontSize: 22,
+  },
+  groupBannerName: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  groupBannerSport: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  switchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(200, 160, 42, 0.1)',
+  },
+  switchBtnText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.gold,
+  },
+  switcherOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  switcherContent: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  switcherTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 16,
+    textAlign: 'center' as const,
+  },
+  switcherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 6,
+    gap: 12,
+  },
+  switcherRowActive: {
+    backgroundColor: 'rgba(200, 160, 42, 0.08)',
+  },
+  switcherEmoji: {
+    fontSize: 24,
+  },
+  switcherInfo: {
+    flex: 1,
+  },
+  switcherName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  switcherNameActive: {
+    color: Colors.gold,
+  },
+  switcherMeta: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  switcherCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   summaryCard: {
     flexDirection: 'row',
     backgroundColor: Colors.cardBackground,
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 12,
     marginBottom: 12,
     borderRadius: 16,
     padding: 16,

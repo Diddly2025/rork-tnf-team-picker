@@ -10,6 +10,7 @@ export interface Group {
   playersPerTeam: number;
   playDay: string;
   playTime: string;
+  costPerSession?: number;
   createdAt: number;
 }
 
