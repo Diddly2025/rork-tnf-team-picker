@@ -1,4 +1,4 @@
-import { Player, Team, TeamOption, Restriction } from '@/types';
+import { Player, TeamOption, Restriction } from '@/types';
 
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -171,6 +171,12 @@ export function getPositionColor(position: string): string {
     case 'DEF': return '#3b82f6';
     case 'MID': return '#22c55e';
     case 'FWD': return '#ef4444';
+    case 'PG': return '#8b5cf6';
+    case 'SG': return '#3b82f6';
+    case 'SF': return '#22c55e';
+    case 'PF': return '#f59e0b';
+    case 'C': return '#ef4444';
+    case 'Player': return '#6366f1';
     default: return '#9ca3af';
   }
 }

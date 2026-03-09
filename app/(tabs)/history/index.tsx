@@ -166,7 +166,7 @@ export default function HistoryScreen() {
           <View style={styles.motmRow}>
             <Star size={12} color={Colors.gold} fill={Colors.gold} />
             <Text style={styles.motmText}>{motmName}</Text>
-            <Text style={styles.motmLabel}>MOTM</Text>
+            <Text style={styles.motmLabel}>POTM</Text>
           </View>
         )}
       </View>

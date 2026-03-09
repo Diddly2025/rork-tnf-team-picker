@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { X, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Player, Position } from '@/types';
+import { Player } from '@/types';
+import { useTNF } from '@/context/TNFContext';
 import Colors from '@/constants/colors';
 
 interface AddPlayerModalProps {
@@ -24,11 +25,12 @@ interface AddPlayerModalProps {
   editPlayer?: Player;
 }
 
-const positions: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
-
 export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }: AddPlayerModalProps) {
+  const { sportConfig } = useTNF();
+  const positions = useMemo(() => sportConfig.hasPositions ? sportConfig.positions : [], [sportConfig.hasPositions, sportConfig.positions]);
+
   const [name, setName] = useState('');
-  const [position, setPosition] = useState<Position>('MID');
+  const [position, setPosition] = useState(positions[0] ?? 'Player');
   const [rating, setRating] = useState('70');
   const [photo, setPhoto] = useState<string | undefined>();
 
@@ -40,11 +42,11 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
       setPhoto(editPlayer.photo);
     } else {
       setName('');
-      setPosition('MID');
+      setPosition(positions.length > 0 ? positions[Math.floor(positions.length / 2)] : 'Player');
       setRating('70');
       setPhoto(undefined);
     }
-  }, [editPlayer, visible]);
+  }, [editPlayer, visible, positions]);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -73,7 +75,7 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
 
     onSave({
       name: name.trim(),
-      position,
+      position: sportConfig.hasPositions ? position : 'Player',
       rating: ratingNum,
       photo,
     });
@@ -122,28 +124,30 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Position</Text>
-              <View style={styles.positionGrid}>
-                {positions.map((pos) => (
-                  <Pressable
-                    key={pos}
-                    style={[
-                      styles.positionButton,
-                      position === pos && styles.positionButtonActive,
-                    ]}
-                    onPress={() => setPosition(pos)}
-                  >
-                    <Text style={[
-                      styles.positionText,
-                      position === pos && styles.positionTextActive,
-                    ]}>
-                      {pos}
-                    </Text>
-                  </Pressable>
-                ))}
+            {sportConfig.hasPositions && positions.length > 0 && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Position</Text>
+                <View style={styles.positionGrid}>
+                  {positions.map((pos) => (
+                    <Pressable
+                      key={pos}
+                      style={[
+                        styles.positionButton,
+                        position === pos && styles.positionButtonActive,
+                      ]}
+                      onPress={() => setPosition(pos)}
+                    >
+                      <Text style={[
+                        styles.positionText,
+                        position === pos && styles.positionTextActive,
+                      ]}>
+                        {pos}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Rating (1-99)</Text>
@@ -250,9 +254,11 @@ const styles = StyleSheet.create({
   positionGrid: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
   },
   positionButton: {
     flex: 1,
+    minWidth: 60,
     paddingVertical: 14,
     borderRadius: 12,
     backgroundColor: Colors.background,

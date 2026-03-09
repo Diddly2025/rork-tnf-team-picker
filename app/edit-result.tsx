@@ -114,7 +114,7 @@ export default function EditResultScreen() {
 
   const stepLabels: Record<Step, string> = {
     date: 'Match Date', teamA: 'Team A Players', teamB: 'Team B Players',
-    score: 'Final Score', motm: 'Man of the Match',
+    score: 'Final Score', motm: 'Player of the Match',
   };
 
   if (!match) {
@@ -249,8 +249,8 @@ export default function EditResultScreen() {
 
   const renderMotmStep = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Man of the Match</Text>
-      <Text style={styles.stepSubtitle}>Optional — tap to award or change MOTM</Text>
+      <Text style={styles.stepTitle}>Player of the Match</Text>
+      <Text style={styles.stepSubtitle}>Optional — tap to award or change POTM</Text>
 
       <Text style={[styles.motmTeamHeader, { color: Colors.teamA }]}>Team A</Text>
       {players.filter(p => teamAIds.includes(p.id)).map(p => {
@@ -280,7 +280,7 @@ export default function EditResultScreen() {
         <View style={styles.motmBanner}>
           <Star size={14} color={Colors.gold} fill={Colors.gold} />
           <Text style={styles.motmBannerText}>
-            {allMatchPlayers.find(p => p.id === manOfMatchId)?.name} awarded MOTM
+            {allMatchPlayers.find(p => p.id === manOfMatchId)?.name} awarded POTM
           </Text>
         </View>
       )}

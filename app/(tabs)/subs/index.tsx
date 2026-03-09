@@ -328,7 +328,7 @@ export default function SubsScreen() {
             <Coins size={20} color={kittyBalance >= 0 ? Colors.success : Colors.danger} />
           </View>
           <View>
-            <Text style={styles.kittyTitle}>TNF Kitty</Text>
+            <Text style={styles.kittyTitle}>Group Kitty</Text>
             <Text style={styles.kittySubtitle}>
               {matchHistory.length} games × £{subsSettings.gameCost.toFixed(0)} = £{totalGameCosts.toFixed(2)} costs
             </Text>

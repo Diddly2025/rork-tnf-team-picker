@@ -86,7 +86,7 @@ export default function StatsScreen() {
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'appearances', label: 'Appearances', icon: <Activity size={14} color={activeTab === 'appearances' ? Colors.background : Colors.textMuted} /> },
     { key: 'wins', label: 'Win Rate', icon: <TrendingUp size={14} color={activeTab === 'wins' ? Colors.background : Colors.textMuted} /> },
-    { key: 'motm', label: 'MOTM', icon: <Star size={14} color={activeTab === 'motm' ? Colors.background : Colors.textMuted} /> },
+    { key: 'motm', label: 'POTM', icon: <Star size={14} color={activeTab === 'motm' ? Colors.background : Colors.textMuted} /> },
   ];
 
   const currentList = activeTab === 'appearances' ? appearanceLeaders : activeTab === 'wins' ? winLeaders : motmLeaders;
@@ -156,7 +156,7 @@ export default function StatsScreen() {
             <>
               <View style={styles.statChip}>
                 <Text style={[styles.statChipValue, { color: Colors.gold }]}>{item.motm}</Text>
-                <Text style={styles.statChipLabel}>MOTM</Text>
+                <Text style={styles.statChipLabel}>POTM</Text>
               </View>
               <View style={styles.statChip}>
                 <Text style={[styles.statChipValue, { color: Colors.text }]}>{item.appearances}</Text>
@@ -186,7 +186,7 @@ export default function StatsScreen() {
         <View style={styles.overviewCard}>
           <Activity size={20} color={Colors.accent} />
           <Text style={styles.overviewValue}>{avgGoalsPerGame}</Text>
-          <Text style={styles.overviewLabel}>Goals/Game</Text>
+          <Text style={styles.overviewLabel}>Avg Score</Text>
         </View>
         <View style={styles.overviewCard}>
           <Users size={20} color={Colors.teamA} />
@@ -252,7 +252,7 @@ export default function StatsScreen() {
           <View style={styles.emptyLeader}>
             <Trophy size={40} color={Colors.textMuted} />
             <Text style={styles.emptyLeaderText}>
-              {activeTab === 'motm' ? 'No MOTM awards yet' : 'No data yet — play some matches!'}
+              {activeTab === 'motm' ? 'No POTM awards yet' : 'No data yet — play some matches!'}
             </Text>
           </View>
         ) : (

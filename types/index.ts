@@ -1,9 +1,22 @@
-export type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
+export type SportType = 'football' | 'padel' | 'tennis' | 'badminton' | 'basketball' | 'hockey' | 'rugby' | 'volleyball' | 'other';
+
+export type Position = string;
+
+export interface Group {
+  id: string;
+  name: string;
+  sport: SportType;
+  customSport?: string;
+  playersPerTeam: number;
+  playDay: string;
+  playTime: string;
+  createdAt: number;
+}
 
 export interface Player {
   id: string;
   name: string;
-  position: Position;
+  position: string;
   rating: number;
   photo?: string;
   createdAt: number;
@@ -72,7 +85,7 @@ export interface Expense {
   id: string;
   description: string;
   amount: number;
-  category: 'equipment' | 'pitch' | 'social' | 'other';
+  category: 'equipment' | 'venue' | 'social' | 'other';
   date: string;
   createdAt: number;
 }

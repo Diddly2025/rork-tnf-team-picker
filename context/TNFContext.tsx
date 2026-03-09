@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Player, Restriction, TeamOption, MatchResult, SubsPayment, SubsSettings, Expense } from '@/types';
 import { generateTeamOptions } from '@/utils/teamGenerator';
+import { useGroup } from '@/context/GroupContext';
+import { getSportConfig, SportConfig } from '@/constants/sports';
 import {
   syncPlayersToSupabase,
   syncRestrictionsToSupabase,
@@ -20,16 +22,14 @@ import {
 } from '@/utils/supabaseSync';
 import { isSupabaseConfigured } from '@/utils/supabase';
 
-const PLAYERS_KEY = 'tnf_players';
-const RESTRICTIONS_KEY = 'tnf_restrictions';
-const MATCH_HISTORY_KEY = 'tnf_match_history';
-const SUBS_PAYMENTS_KEY = 'tnf_subs_payments';
-const SUBS_SETTINGS_KEY = 'tnf_subs_settings';
-const EXPENSES_KEY = 'tnf_expenses';
-const SYNC_TIMESTAMP_KEY = 'tnf_last_sync';
+function sk(groupId: string | null, suffix: string): string {
+  return `pd_${groupId ?? 'none'}_${suffix}`;
+}
 
 export const [TNFProvider, useTNF] = createContextHook(() => {
   const queryClient = useQueryClient();
+  const { activeGroup, activeGroupId } = useGroup();
+
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [generatedTeams, setGeneratedTeams] = useState<TeamOption[]>([]);
   const [manualTeamA, setManualTeamA] = useState<Player[]>([]);
@@ -38,6 +38,21 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState<boolean>(false);
   const initialSyncDone = useRef(false);
   const cloudSyncRef = useRef(false);
+
+  const sportConfig: SportConfig = useMemo(() => {
+    return getSportConfig(activeGroup?.sport ?? 'football');
+  }, [activeGroup?.sport]);
+
+  const maxPlayersPerSide = activeGroup?.playersPerTeam ?? 7;
+  const maxTotalPlayers = maxPlayersPerSide * 2;
+
+  useEffect(() => {
+    setSelectedPlayerIds([]);
+    setGeneratedTeams([]);
+    setManualTeamA([]);
+    setManualTeamB([]);
+    initialSyncDone.current = false;
+  }, [activeGroupId]);
 
   useEffect(() => {
     getCloudSyncEnabled().then(enabled => {
@@ -58,11 +73,14 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     return cloudSyncRef.current && isSupabaseConfigured();
   }, []);
 
+  const gid = activeGroupId;
+  const hasGroup = !!gid;
+
   const playersQuery = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: ['players'],
+    queryKey: ['players', gid],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(PLAYERS_KEY);
+      if (!gid) return [];
+      const stored = await AsyncStorage.getItem(sk(gid, 'players'));
       const localData = stored ? (JSON.parse(stored) as Player[]) : [];
 
       if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
@@ -71,7 +89,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
           const remote = await fetchPlayersFromSupabase();
           if (remote && remote.length > 0) {
             console.log('[Hybrid] Restored players from Supabase:', remote.length);
-            await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(remote));
+            await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(remote));
             return remote;
           }
         } catch (e) {
@@ -80,21 +98,21 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       }
       return localData;
     },
+    enabled: hasGroup,
   });
 
   const restrictionsQuery = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: ['restrictions'],
+    queryKey: ['restrictions', gid],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(RESTRICTIONS_KEY);
+      if (!gid) return [];
+      const stored = await AsyncStorage.getItem(sk(gid, 'restrictions'));
       const localData = stored ? (JSON.parse(stored) as Restriction[]) : [];
 
       if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
         try {
-          console.log('[Hybrid] Local restrictions empty, trying Supabase...');
           const remote = await fetchRestrictionsFromSupabase();
           if (remote && remote.length > 0) {
-            await AsyncStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(remote));
+            await AsyncStorage.setItem(sk(gid, 'restrictions'), JSON.stringify(remote));
             return remote;
           }
         } catch (e) {
@@ -103,21 +121,21 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       }
       return localData;
     },
+    enabled: hasGroup,
   });
 
   const matchHistoryQuery = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: ['matchHistory'],
+    queryKey: ['matchHistory', gid],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(MATCH_HISTORY_KEY);
+      if (!gid) return [];
+      const stored = await AsyncStorage.getItem(sk(gid, 'match_history'));
       const localData = stored ? (JSON.parse(stored) as MatchResult[]) : [];
 
       if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
         try {
-          console.log('[Hybrid] Local match history empty, trying Supabase...');
           const remote = await fetchMatchResultsFromSupabase();
           if (remote && remote.length > 0) {
-            await AsyncStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(remote));
+            await AsyncStorage.setItem(sk(gid, 'match_history'), JSON.stringify(remote));
             return remote;
           }
         } catch (e) {
@@ -126,21 +144,21 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       }
       return localData;
     },
+    enabled: hasGroup,
   });
 
   const subsPaymentsQuery = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: ['subsPayments'],
+    queryKey: ['subsPayments', gid],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(SUBS_PAYMENTS_KEY);
+      if (!gid) return [];
+      const stored = await AsyncStorage.getItem(sk(gid, 'subs_payments'));
       const localData = stored ? (JSON.parse(stored) as SubsPayment[]) : [];
 
       if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
         try {
-          console.log('[Hybrid] Local subs payments empty, trying Supabase...');
           const remote = await fetchSubsPaymentsFromSupabase();
           if (remote && remote.length > 0) {
-            await AsyncStorage.setItem(SUBS_PAYMENTS_KEY, JSON.stringify(remote));
+            await AsyncStorage.setItem(sk(gid, 'subs_payments'), JSON.stringify(remote));
             return remote;
           }
         } catch (e) {
@@ -149,29 +167,31 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       }
       return localData;
     },
+    enabled: hasGroup,
   });
 
   const expensesQuery = useQuery({
-    queryKey: ['expenses'],
+    queryKey: ['expenses', gid],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(EXPENSES_KEY);
+      if (!gid) return [];
+      const stored = await AsyncStorage.getItem(sk(gid, 'expenses'));
       return stored ? (JSON.parse(stored) as Expense[]) : [];
     },
+    enabled: hasGroup,
   });
 
   const subsSettingsQuery = useQuery({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: ['subsSettings'],
+    queryKey: ['subsSettings', gid],
     queryFn: async () => {
-      const stored = await AsyncStorage.getItem(SUBS_SETTINGS_KEY);
+      if (!gid) return { costPerGame: 5, lateFee: 1, gameCost: 58 };
+      const stored = await AsyncStorage.getItem(sk(gid, 'subs_settings'));
       const localData = stored ? (JSON.parse(stored) as SubsSettings) : null;
 
       if (!initialSyncDone.current && !localData && cloudSyncRef.current && isSupabaseConfigured()) {
         try {
-          console.log('[Hybrid] Local subs settings empty, trying Supabase...');
           const remote = await fetchSubsSettingsFromSupabase();
           if (remote) {
-            await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(remote));
+            await AsyncStorage.setItem(sk(gid, 'subs_settings'), JSON.stringify(remote));
             return remote;
           }
         } catch (e) {
@@ -180,6 +200,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       }
       return localData ?? { costPerGame: 5, lateFee: 1, gameCost: 58 };
     },
+    enabled: hasGroup,
   });
 
   useEffect(() => {
@@ -202,84 +223,90 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
 
   const { mutate: savePlayers } = useMutation({
     mutationFn: async (players: Player[]) => {
-      await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(players));
+      if (!gid) return players;
+      await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(players));
       if (shouldSync()) {
-        syncPlayersToSupabase(players).catch(e => console.log('[Sync] Players bg sync error:', e));
+        void syncPlayersToSupabase(players).catch(e => console.log('[Sync] Players bg sync error:', e));
       }
       return players;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['players'] });
+      void queryClient.invalidateQueries({ queryKey: ['players', gid] });
     },
   });
 
   const { mutate: saveRestrictions } = useMutation({
     mutationFn: async (restrictions: Restriction[]) => {
-      await AsyncStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(restrictions));
+      if (!gid) return restrictions;
+      await AsyncStorage.setItem(sk(gid, 'restrictions'), JSON.stringify(restrictions));
       if (shouldSync()) {
-        syncRestrictionsToSupabase(restrictions).catch(e => console.log('[Sync] Restrictions bg sync error:', e));
+        void syncRestrictionsToSupabase(restrictions).catch(e => console.log('[Sync] Restrictions bg sync error:', e));
       }
       return restrictions;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['restrictions'] });
+      void queryClient.invalidateQueries({ queryKey: ['restrictions', gid] });
     },
   });
 
   const { mutate: saveMatchHistory } = useMutation({
     mutationFn: async (history: MatchResult[]) => {
-      await AsyncStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(history));
+      if (!gid) return history;
+      await AsyncStorage.setItem(sk(gid, 'match_history'), JSON.stringify(history));
       if (shouldSync()) {
-        syncMatchResultsToSupabase(history).catch(e => console.log('[Sync] Match history bg sync error:', e));
+        void syncMatchResultsToSupabase(history).catch(e => console.log('[Sync] Match history bg sync error:', e));
       }
       return history;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['matchHistory'] });
+      void queryClient.invalidateQueries({ queryKey: ['matchHistory', gid] });
     },
   });
 
   const { mutate: saveSubsPayments } = useMutation({
     mutationFn: async (payments: SubsPayment[]) => {
-      await AsyncStorage.setItem(SUBS_PAYMENTS_KEY, JSON.stringify(payments));
+      if (!gid) return payments;
+      await AsyncStorage.setItem(sk(gid, 'subs_payments'), JSON.stringify(payments));
       if (shouldSync()) {
-        syncSubsPaymentsToSupabase(payments).catch(e => console.log('[Sync] Subs bg sync error:', e));
+        void syncSubsPaymentsToSupabase(payments).catch(e => console.log('[Sync] Subs bg sync error:', e));
       }
       return payments;
     },
     onMutate: async (payments) => {
-      await queryClient.cancelQueries({ queryKey: ['subsPayments'] });
-      queryClient.setQueryData(['subsPayments'], payments);
+      await queryClient.cancelQueries({ queryKey: ['subsPayments', gid] });
+      queryClient.setQueryData(['subsPayments', gid], payments);
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(['subsPayments'], data);
+      queryClient.setQueryData(['subsPayments', gid], data);
     },
   });
 
   const { mutate: saveExpenses } = useMutation({
     mutationFn: async (expenses: Expense[]) => {
-      await AsyncStorage.setItem(EXPENSES_KEY, JSON.stringify(expenses));
+      if (!gid) return expenses;
+      await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(expenses));
       return expenses;
     },
     onMutate: async (expenses) => {
-      await queryClient.cancelQueries({ queryKey: ['expenses'] });
-      queryClient.setQueryData(['expenses'], expenses);
+      await queryClient.cancelQueries({ queryKey: ['expenses', gid] });
+      queryClient.setQueryData(['expenses', gid], expenses);
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(['expenses'], data);
+      queryClient.setQueryData(['expenses', gid], data);
     },
   });
 
   const { mutate: saveSubsSettings } = useMutation({
     mutationFn: async (settings: SubsSettings) => {
-      await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(settings));
+      if (!gid) return settings;
+      await AsyncStorage.setItem(sk(gid, 'subs_settings'), JSON.stringify(settings));
       if (shouldSync()) {
-        syncSubsSettingsToSupabase(settings).catch(e => console.log('[Sync] Settings bg sync error:', e));
+        void syncSubsSettingsToSupabase(settings).catch(e => console.log('[Sync] Settings bg sync error:', e));
       }
       return settings;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subsSettings'] });
+      void queryClient.invalidateQueries({ queryKey: ['subsSettings', gid] });
     },
   });
 
@@ -294,14 +321,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [subsSettingsQuery.data]);
 
   const forceCloudSync = useCallback(async () => {
-    if (!isSupabaseConfigured()) {
-      console.log('[Sync] Supabase not configured');
-      return;
-    }
-    if (!cloudSyncRef.current) {
-      console.log('[Sync] Cloud sync disabled');
-      return;
-    }
+    if (!isSupabaseConfigured() || !cloudSyncRef.current) return;
     setSyncStatus('syncing');
     try {
       await Promise.all([
@@ -311,7 +331,6 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         syncSubsPaymentsToSupabase(subsPayments),
         syncSubsSettingsToSupabase(subsSettings),
       ]);
-      await AsyncStorage.setItem(SYNC_TIMESTAMP_KEY, new Date().toISOString());
       setSyncStatus('synced');
       console.log('[Sync] Full sync completed');
     } catch (e) {
@@ -321,14 +340,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [players, restrictions, matchHistory, subsPayments, subsSettings]);
 
   const forceCloudRestore = useCallback(async () => {
-    if (!isSupabaseConfigured()) {
-      console.log('[Restore] Supabase not configured');
-      return;
-    }
-    if (!cloudSyncRef.current) {
-      console.log('[Restore] Cloud sync disabled');
-      return;
-    }
+    if (!isSupabaseConfigured() || !cloudSyncRef.current || !gid) return;
     setSyncStatus('syncing');
     try {
       const [remotePlayers, remoteRestrictions, remoteMatches, remotePayments, remoteSettings] = await Promise.all([
@@ -338,35 +350,33 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         fetchSubsPaymentsFromSupabase(),
         fetchSubsSettingsFromSupabase(),
       ]);
-
       if (remotePlayers) {
-        await AsyncStorage.setItem(PLAYERS_KEY, JSON.stringify(remotePlayers));
-        queryClient.setQueryData(['players'], remotePlayers);
+        await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(remotePlayers));
+        queryClient.setQueryData(['players', gid], remotePlayers);
       }
       if (remoteRestrictions) {
-        await AsyncStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(remoteRestrictions));
-        queryClient.setQueryData(['restrictions'], remoteRestrictions);
+        await AsyncStorage.setItem(sk(gid, 'restrictions'), JSON.stringify(remoteRestrictions));
+        queryClient.setQueryData(['restrictions', gid], remoteRestrictions);
       }
       if (remoteMatches) {
-        await AsyncStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(remoteMatches));
-        queryClient.setQueryData(['matchHistory'], remoteMatches);
+        await AsyncStorage.setItem(sk(gid, 'match_history'), JSON.stringify(remoteMatches));
+        queryClient.setQueryData(['matchHistory', gid], remoteMatches);
       }
       if (remotePayments) {
-        await AsyncStorage.setItem(SUBS_PAYMENTS_KEY, JSON.stringify(remotePayments));
-        queryClient.setQueryData(['subsPayments'], remotePayments);
+        await AsyncStorage.setItem(sk(gid, 'subs_payments'), JSON.stringify(remotePayments));
+        queryClient.setQueryData(['subsPayments', gid], remotePayments);
       }
       if (remoteSettings) {
-        await AsyncStorage.setItem(SUBS_SETTINGS_KEY, JSON.stringify(remoteSettings));
-        queryClient.setQueryData(['subsSettings'], remoteSettings);
+        await AsyncStorage.setItem(sk(gid, 'subs_settings'), JSON.stringify(remoteSettings));
+        queryClient.setQueryData(['subsSettings', gid], remoteSettings);
       }
-
       setSyncStatus('synced');
       console.log('[Restore] Data restored from Supabase');
     } catch (e) {
       setSyncStatus('error');
       console.log('[Restore] Restore failed:', e);
     }
-  }, [queryClient]);
+  }, [gid, queryClient]);
 
   const getPlayerAppearances = useCallback((playerId: string) => {
     return matchHistory.filter(m => m.playerIds.includes(playerId)).length;
@@ -479,23 +489,17 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [subsPayments, matchHistory, subsSettings.gameCost, expenses]);
 
   const getTotalOutstanding = useCallback(() => {
-    const total = players.reduce((sum, p) => {
+    return players.reduce((sum, p) => {
       const balance = getPlayerBalance(p.id);
       if (balance < 0) return sum + Math.abs(balance);
       return sum;
     }, 0);
-    return total;
   }, [players, getPlayerBalance]);
 
   const addSubsCredit = useCallback((playerId: string, amount: number, description: string, date: string) => {
     const newPayment: SubsPayment = {
       id: `subs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      playerId,
-      amount,
-      type: 'credit',
-      description,
-      date,
-      createdAt: Date.now(),
+      playerId, amount, type: 'credit', description, date, createdAt: Date.now(),
     };
     saveSubsPayments([newPayment, ...subsPayments]);
   }, [subsPayments, saveSubsPayments]);
@@ -503,12 +507,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const addSubsDebit = useCallback((playerId: string, amount: number, description: string, date: string) => {
     const newPayment: SubsPayment = {
       id: `subs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      playerId,
-      amount,
-      type: 'debit',
-      description,
-      date,
-      createdAt: Date.now(),
+      playerId, amount, type: 'debit', description, date, createdAt: Date.now(),
     };
     saveSubsPayments([newPayment, ...subsPayments]);
   }, [subsPayments, saveSubsPayments]);
@@ -516,32 +515,23 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const addGuestDebit = useCallback((sponsorPlayerId: string, guestName: string, amount: number, date: string) => {
     const newPayment: SubsPayment = {
       id: `subs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      playerId: sponsorPlayerId,
-      amount,
-      type: 'debit',
-      description: `Guest: ${guestName}`,
-      date,
-      createdAt: Date.now(),
-      guestName,
+      playerId: sponsorPlayerId, amount, type: 'debit',
+      description: `Guest: ${guestName}`, date, createdAt: Date.now(), guestName,
     };
     saveSubsPayments([newPayment, ...subsPayments]);
   }, [subsPayments, saveSubsPayments]);
 
   const deleteSubsPayment = useCallback((id: string) => {
-    const filtered = subsPayments.filter(p => p.id !== id);
-    saveSubsPayments(filtered);
+    saveSubsPayments(subsPayments.filter(p => p.id !== id));
   }, [subsPayments, saveSubsPayments]);
 
   const voidMatchDebit = useCallback((matchId: string, playerId: string, matchDate: string) => {
     const voidPayment: SubsPayment = {
       id: `void-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      playerId,
-      amount: subsSettings.costPerGame,
-      type: 'credit',
+      playerId, amount: subsSettings.costPerGame, type: 'credit',
       description: `Voided: Match ${matchDate}`,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      createdAt: Date.now(),
-      voidedMatchId: matchId,
+      createdAt: Date.now(), voidedMatchId: matchId,
     };
     saveSubsPayments([voidPayment, ...subsPayments]);
   }, [subsPayments, subsSettings.costPerGame, saveSubsPayments]);
@@ -556,8 +546,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [expenses, saveExpenses]);
 
   const deleteExpense = useCallback((id: string) => {
-    const filtered = expenses.filter(e => e.id !== id);
-    saveExpenses(filtered);
+    saveExpenses(expenses.filter(e => e.id !== id));
   }, [expenses, saveExpenses]);
 
   const updateSubsSettings = useCallback((settings: SubsSettings) => {
@@ -583,18 +572,13 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [players, savePlayers]);
 
   const updatePlayer = useCallback((id: string, updates: Partial<Player>) => {
-    const updated = players.map(p => p.id === id ? { ...p, ...updates } : p);
-    savePlayers(updated);
+    savePlayers(players.map(p => p.id === id ? { ...p, ...updates } : p));
   }, [players, savePlayers]);
 
   const deletePlayer = useCallback((id: string) => {
-    const filtered = players.filter(p => p.id !== id);
-    savePlayers(filtered);
+    savePlayers(players.filter(p => p.id !== id));
     setSelectedPlayerIds(prev => prev.filter(pid => pid !== id));
-    const filteredRestrictions = restrictions.filter(
-      r => r.player1Id !== id && r.player2Id !== id
-    );
-    saveRestrictions(filteredRestrictions);
+    saveRestrictions(restrictions.filter(r => r.player1Id !== id && r.player2Id !== id));
   }, [players, restrictions, savePlayers, saveRestrictions]);
 
   const addRestriction = useCallback((player1Id: string, player2Id: string, type: 'apart' | 'together' = 'apart') => {
@@ -603,19 +587,14 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
            (r.player1Id === player2Id && r.player2Id === player1Id)
     );
     if (exists) return;
-    
     const newRestriction: Restriction = {
-      id: `restriction-${Date.now()}`,
-      player1Id,
-      player2Id,
-      type,
+      id: `restriction-${Date.now()}`, player1Id, player2Id, type,
     };
     saveRestrictions([...restrictions, newRestriction]);
   }, [restrictions, saveRestrictions]);
 
   const removeRestriction = useCallback((id: string) => {
-    const filtered = restrictions.filter(r => r.id !== id);
-    saveRestrictions(filtered);
+    saveRestrictions(restrictions.filter(r => r.id !== id));
   }, [restrictions, saveRestrictions]);
 
   const togglePlayerSelection = useCallback((playerId: string) => {
@@ -623,14 +602,14 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (prev.includes(playerId)) {
         return prev.filter(id => id !== playerId);
       }
-      if (prev.length >= 14) return prev;
+      if (prev.length >= maxTotalPlayers) return prev;
       return [...prev, playerId];
     });
-  }, []);
+  }, [maxTotalPlayers]);
 
   const selectAllPlayers = useCallback(() => {
-    setSelectedPlayerIds(players.slice(0, 14).map(p => p.id));
-  }, [players]);
+    setSelectedPlayerIds(players.slice(0, maxTotalPlayers).map(p => p.id));
+  }, [players, maxTotalPlayers]);
 
   const clearSelection = useCallback(() => {
     setSelectedPlayerIds([]);
@@ -647,12 +626,12 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     setGeneratedTeams([]);
   }, []);
 
-  const selectedPlayers = useMemo(() => 
+  const selectedPlayers = useMemo(() =>
     players.filter(p => selectedPlayerIds.includes(p.id)),
     [players, selectedPlayerIds]
   );
 
-  const getPlayerById = useCallback((id: string) => 
+  const getPlayerById = useCallback((id: string) =>
     players.find(p => p.id === id),
     [players]
   );
@@ -667,13 +646,11 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [matchHistory, saveMatchHistory]);
 
   const deleteMatchResult = useCallback((id: string) => {
-    const filtered = matchHistory.filter(m => m.id !== id);
-    saveMatchHistory(filtered);
+    saveMatchHistory(matchHistory.filter(m => m.id !== id));
   }, [matchHistory, saveMatchHistory]);
 
   const updateMatchResult = useCallback((id: string, updates: Partial<Omit<MatchResult, 'id' | 'createdAt'>>) => {
-    const updated = matchHistory.map(m => m.id === id ? { ...m, ...updates } : m);
-    saveMatchHistory(updated);
+    saveMatchHistory(matchHistory.map(m => m.id === id ? { ...m, ...updates } : m));
   }, [matchHistory, saveMatchHistory]);
 
   const assignPlayerToManualTeam = useCallback((player: Player, team: 'A' | 'B') => {
@@ -716,10 +693,12 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     };
   }, [manualTeamA, manualTeamB]);
 
+  const groupName = activeGroup?.name ?? 'PlayDay';
+
   const getExportData = useCallback(() => {
     const lines: string[] = [];
-    lines.push('=== TNF PLAYER DATABASE ===');
-    lines.push('Player Name\tPosition\tRating\tAppearances\tWins\tDraws\tLosses\tWin%\tMOTM\tSubs Balance');
+    lines.push(`=== ${groupName.toUpperCase()} PLAYER DATABASE ===`);
+    lines.push('Player Name\tPosition\tRating\tAppearances\tWins\tDraws\tLosses\tWin%\tPOTM\tSubs Balance');
     players.forEach(p => {
       const apps = getPlayerAppearances(p.id);
       const wins = getPlayerWins(p.id);
@@ -738,16 +717,16 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       lines.push(`Team A: ${m.teamA.players.map(p => p.name).join(', ')}`);
       lines.push(`Team B: ${m.teamB.players.map(p => p.name).join(', ')}`);
       if (m.manOfMatchId) {
-        const motmPlayer = players.find(p => p.id === m.manOfMatchId);
-        lines.push(`Man of the Match: ${motmPlayer?.name ?? 'Unknown'}`);
+        const potmPlayer = players.find(p => p.id === m.manOfMatchId);
+        lines.push(`Player of the Match: ${potmPlayer?.name ?? 'Unknown'}`);
       }
       lines.push(`Manual Teams: ${m.isManualTeams ? 'Yes' : 'No'}`);
       lines.push('---');
     });
     return lines.join('\n');
-  }, [players, matchHistory, getPlayerAppearances, getPlayerWins, getPlayerDraws, getPlayerLosses, getPlayerMotmCount, getPlayerBalance]);
+  }, [groupName, players, matchHistory, getPlayerAppearances, getPlayerWins, getPlayerDraws, getPlayerLosses, getPlayerMotmCount, getPlayerBalance]);
 
-  return {
+  return useMemo(() => ({
     players,
     restrictions,
     selectedPlayerIds,
@@ -806,5 +785,25 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     getTotalExpenses,
     forceCloudSync,
     forceCloudRestore,
-  };
+    sportConfig,
+    maxPlayersPerSide,
+    maxTotalPlayers,
+    activeGroup,
+  }), [
+    players, restrictions, selectedPlayerIds, selectedPlayers, generatedTeams,
+    matchHistory, manualTeamA, manualTeamB, subsPayments, subsSettings,
+    syncStatus, cloudSyncEnabled, toggleCloudSync,
+    playersQuery.isLoading, restrictionsQuery.isLoading, matchHistoryQuery.isLoading,
+    addPlayer, bulkAddPlayers, updatePlayer, deletePlayer,
+    addRestriction, removeRestriction, togglePlayerSelection, selectAllPlayers, clearSelection,
+    generateTeams, clearGeneratedTeams, getPlayerById,
+    getPlayerAppearances, getPlayerWins, getPlayerDraws, getPlayerLosses,
+    getPlayerMotmCount, getPlayerWinPercentage, getPlayerBalance, getPlayerPayments,
+    getTotalCollected, getTotalOutstanding, getKittyBalance, getPlayerTotalPaid,
+    addSubsCredit, addSubsDebit, addGuestDebit, deleteSubsPayment, voidMatchDebit,
+    updateSubsSettings, saveMatchResult, deleteMatchResult, updateMatchResult,
+    assignPlayerToManualTeam, removePlayerFromManualTeam, clearManualTeams, buildManualTeamOption,
+    getExportData, expenses, addExpense, deleteExpense, getTotalExpenses,
+    forceCloudSync, forceCloudRestore, sportConfig, maxPlayersPerSide, maxTotalPlayers, activeGroup,
+  ]);
 });

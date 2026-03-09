@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Team } from '@/types';
+import { useTNF } from '@/context/TNFContext';
 import PlayerCard from './PlayerCard';
-import Colors from '@/constants/colors';
 
 interface PitchViewProps {
   teamA: Team;
@@ -11,9 +11,13 @@ interface PitchViewProps {
 }
 
 export default function PitchView({ teamA, teamB, compact = false }: PitchViewProps) {
+  const { sportConfig: sc } = useTNF();
+  const courtBg = sc.courtColor;
+  const lineColor = sc.courtLinesColor;
+
   const buildFormationRows = (players: typeof teamA.players) => {
     const sorted = [...players].sort((a, b) => {
-      const posOrder: Record<string, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
+      const posOrder: Record<string, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3, PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
       return (posOrder[a.position] ?? 2) - (posOrder[b.position] ?? 2);
     });
 
@@ -49,12 +53,12 @@ export default function PitchView({ teamA, teamB, compact = false }: PitchViewPr
   };
 
   return (
-    <View style={[styles.pitch, compact && styles.pitchCompact]}>
+    <View style={[styles.pitch, compact && styles.pitchCompact, { backgroundColor: courtBg }]}>
       <View style={styles.pitchMarkings}>
-        <View style={styles.halfwayLine} />
-        <View style={styles.centerCircle} />
-        <View style={[styles.penaltyArea, styles.topPenaltyArea]} />
-        <View style={[styles.penaltyArea, styles.bottomPenaltyArea]} />
+        <View style={[styles.halfwayLine, { backgroundColor: lineColor }]} />
+        <View style={[styles.centerCircle, { borderColor: lineColor }]} />
+        <View style={[styles.penaltyArea, styles.topPenaltyArea, { borderColor: lineColor }]} />
+        <View style={[styles.penaltyArea, styles.bottomPenaltyArea, { borderColor: lineColor }]} />
       </View>
       
       <View style={styles.teamsContainer}>
@@ -66,7 +70,7 @@ export default function PitchView({ teamA, teamB, compact = false }: PitchViewPr
           {renderTeamFormation(teamA, true)}
         </View>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: lineColor }]} />
         
         <View style={[styles.teamSection, compact && styles.teamSectionCompact]}>
           <View style={styles.teamHeader}>
@@ -83,7 +87,7 @@ export default function PitchView({ teamA, teamB, compact = false }: PitchViewPr
 const styles = StyleSheet.create({
   pitch: {
     minHeight: 700,
-    backgroundColor: Colors.pitch,
+    backgroundColor: '#2d5a27',
     borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
@@ -101,7 +105,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     height: 2,
-    backgroundColor: Colors.pitchLines,
+    backgroundColor: '#3d7a37',
   },
   centerCircle: {
     position: 'absolute',
@@ -113,7 +117,7 @@ const styles = StyleSheet.create({
     marginTop: -25,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: Colors.pitchLines,
+    borderColor: '#3d7a37',
   },
   penaltyArea: {
     position: 'absolute',
@@ -121,7 +125,7 @@ const styles = StyleSheet.create({
     right: '20%',
     height: 40,
     borderWidth: 2,
-    borderColor: Colors.pitchLines,
+    borderColor: '#3d7a37',
   },
   topPenaltyArea: {
     top: 0,
@@ -146,7 +150,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 2,
-    backgroundColor: Colors.pitchLines,
+    backgroundColor: '#3d7a37',
     marginHorizontal: 20,
     opacity: 0.5,
   },

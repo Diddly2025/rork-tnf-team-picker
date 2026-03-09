@@ -8,15 +8,20 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
-import { Plus, Users, Upload } from 'lucide-react-native';
+import { Plus, Users, Upload, ChevronRight } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useTNF } from '@/context/TNFContext';
+import { useGroup } from '@/context/GroupContext';
 import PlayerCard from '@/components/PlayerCard';
 import AddPlayerModal from '@/components/AddPlayerModal';
 import ImportPlayersModal from '@/components/ImportPlayersModal';
+import { getSportConfig, getSportLabel } from '@/constants/sports';
 import { Player } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function PlayersScreen() {
+  const router = useRouter();
+  const { activeGroup } = useGroup();
   const { 
     players, addPlayer, bulkAddPlayers, updatePlayer, deletePlayer,
     getPlayerAppearances, getPlayerWins, getPlayerDraws, getPlayerLosses,
@@ -112,8 +117,25 @@ export default function PlayersScreen() {
     </View>
   );
 
+  const sportConfig = activeGroup ? getSportConfig(activeGroup.sport) : null;
+
   return (
     <View style={styles.container}>
+      {activeGroup && (
+        <Pressable style={styles.groupBanner} onPress={() => router.push('/manage-groups' as any)}>
+          <View style={styles.groupBannerLeft}>
+            <Text style={styles.groupEmoji}>{sportConfig?.emoji}</Text>
+            <View>
+              <Text style={styles.groupBannerName}>{activeGroup.name}</Text>
+              <Text style={styles.groupBannerMeta}>
+                {getSportLabel(activeGroup.sport, activeGroup.customSport)} · {activeGroup.playersPerTeam}v{activeGroup.playersPerTeam}
+              </Text>
+            </View>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </Pressable>
+      )}
+
       <View style={styles.statsBar}>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{players.length}</Text>
@@ -286,6 +308,36 @@ const styles = StyleSheet.create({
     color: Colors.background,
     fontSize: 16,
     fontWeight: '600' as const,
+  },
+  groupBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  groupBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  groupEmoji: {
+    fontSize: 24,
+  },
+  groupBannerName: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  groupBannerMeta: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   fab: {
     position: 'absolute',

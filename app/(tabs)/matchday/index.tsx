@@ -8,7 +8,6 @@ import {
   Alert,
   Modal,
   Animated,
-  ScrollView,
 } from 'react-native';
 import { useRouter, RelativePathString } from 'expo-router';
 import { CheckCircle, Circle, Users, Shuffle, Edit3, Ban, Plus, X, AlertTriangle, UserX, Link2 } from 'lucide-react-native';
@@ -28,11 +27,12 @@ export default function MatchDayScreen() {
     generateTeams,
     getPlayerAppearances,
     clearManualTeams,
-    selectedPlayers,
+    selectedPlayers: _selectedPlayers,
     restrictions,
     addRestriction,
     removeRestriction,
     getPlayerById,
+    maxTotalPlayers: _mt,
   } = useTNF();
 
   const [restrictionsModalVisible, setRestrictionsModalVisible] = useState(false);
@@ -43,7 +43,7 @@ export default function MatchDayScreen() {
   const [restrictionBannerShown, setRestrictionBannerShown] = useState(false);
   const [bannerAnim] = useState(() => new Animated.Value(0));
 
-  const maxPlayers = 14;
+  const maxPlayers = _mt;
   const halfCount = Math.ceil(selectedPlayerIds.length / 2);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function MatchDayScreen() {
       setRestrictionBannerShown(false);
       bannerAnim.setValue(0);
     }
-  }, [selectedPlayerIds.length, restrictions.length]);
+  }, [selectedPlayerIds.length, restrictions.length, maxPlayers, restrictionBannerShown, bannerAnim]);
 
   const handleGenerateTeams = useCallback(() => {
     if (selectedPlayerIds.length < 4) {

@@ -182,7 +182,7 @@ export default function MatchResultScreen() {
         <View style={styles.motmSection}>
           <View style={styles.motmHeader}>
             <Star size={18} color={Colors.gold} fill={Colors.gold} />
-            <Text style={styles.motmTitle}>Man of the Match</Text>
+            <Text style={styles.motmTitle}>Player of the Match</Text>
           </View>
           <Text style={styles.motmSubtitle}>Optional — tap to select</Text>
           <View style={styles.motmGrid}>
@@ -217,7 +217,7 @@ export default function MatchResultScreen() {
             <View style={styles.motmSelectedBanner}>
               <Star size={14} color={Colors.gold} fill={Colors.gold} />
               <Text style={styles.motmSelectedText}>
-                {allPlayers.find(p => p.id === manOfMatchId)?.name} — MOTM
+                {allPlayers.find(p => p.id === manOfMatchId)?.name} — POTM
               </Text>
             </View>
           )}

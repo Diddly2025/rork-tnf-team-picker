@@ -43,14 +43,14 @@ type ExpenseCategory = Expense['category'];
 
 const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; icon: string }[] = [
   { value: 'equipment', label: 'Equipment', icon: 'bibs, balls, cones' },
-  { value: 'pitch', label: 'Pitch', icon: 'booking, maintenance' },
+  { value: 'venue', label: 'Venue', icon: 'booking, maintenance' },
   { value: 'social', label: 'Social', icon: 'food, drinks, events' },
   { value: 'other', label: 'Other', icon: 'miscellaneous' },
 ];
 
 const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   equipment: '#2563eb',
-  pitch: '#059669',
+  venue: '#059669',
   social: '#d97706',
   other: '#7c3aed',
 };
@@ -275,7 +275,7 @@ export default function FinanceScreen() {
         ]
       );
     } else {
-      toggleCloudSync(false);
+      void toggleCloudSync(false);
     }
   }, [toggleCloudSync]);
 
@@ -521,7 +521,7 @@ export default function FinanceScreen() {
           <View style={styles.kittyHeroLeft}>
             <PiggyBank size={32} color={kittyBalance >= 0 ? Colors.gold : Colors.danger} />
             <View style={styles.kittyHeroText}>
-              <Text style={styles.kittyHeroLabel}>TNF Kitty Balance</Text>
+              <Text style={styles.kittyHeroLabel}>Group Kitty Balance</Text>
               <Text style={styles.kittyHeroSub}>{matchHistory.length} games played</Text>
             </View>
           </View>

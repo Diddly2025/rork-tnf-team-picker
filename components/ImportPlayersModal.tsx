@@ -12,7 +12,8 @@ import {
   Alert,
 } from 'react-native';
 import { X, Upload, FileText, Info } from 'lucide-react-native';
-import { Player, Position } from '@/types';
+import { Player } from '@/types';
+import { useTNF } from '@/context/TNFContext';
 import Colors from '@/constants/colors';
 
 interface ImportPlayersModalProps {
@@ -21,24 +22,24 @@ interface ImportPlayersModalProps {
   onImport: (players: Omit<Player, 'id' | 'createdAt'>[]) => void;
 }
 
-const VALID_POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
-
-const EXAMPLE_DATA = `Diddly	FWD	70
-Sunny	MID	75
-Pritz	MID	77
-Tahir	DEF	78
-Nadz	MID	85`;
+const EXAMPLE_DATA = `Player1	Player	70
+Player2	Player	75
+Player3	Player	77
+Player4	Player	78
+Player5	Player	85`;
 
 export default function ImportPlayersModal({ visible, onClose, onImport }: ImportPlayersModalProps) {
+  const { sportConfig } = useTNF();
+  const VALID_POSITIONS = sportConfig.hasPositions ? sportConfig.positions : ['Player'];
   const [inputText, setInputText] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
 
-  const parsePosition = (pos: string): Position | null => {
+  const parsePosition = (pos: string): string | null => {
     const normalized = pos.toUpperCase().trim();
-    if (VALID_POSITIONS.includes(normalized as Position)) {
-      return normalized as Position;
+    if (VALID_POSITIONS.map(p => p.toUpperCase()).includes(normalized)) {
+      return VALID_POSITIONS.find(p => p.toUpperCase() === normalized) ?? normalized;
     }
-    const positionMap: Record<string, Position> = {
+    const positionMap: Record<string, string> = {
       'GOALKEEPER': 'GK',
       'GOALIE': 'GK',
       'KEEPER': 'GK',
@@ -61,8 +62,17 @@ export default function ImportPlayersModal({ visible, onClose, onImport }: Impor
       'LW': 'FWD',
       'RW': 'FWD',
       'WINGER': 'FWD',
+      'POINT GUARD': 'PG',
+      'SHOOTING GUARD': 'SG',
+      'SMALL FORWARD': 'SF',
+      'POWER FORWARD': 'PF',
+      'CENTER': 'C',
+      'PLAYER': 'Player',
     };
-    return positionMap[normalized] || null;
+    const mapped = positionMap[normalized];
+    if (mapped) return mapped;
+    if (!sportConfig.hasPositions) return 'Player';
+    return null;
   };
 
   const handleImport = () => {
@@ -102,7 +112,7 @@ export default function ImportPlayersModal({ visible, onClose, onImport }: Impor
 
       const position = parsePosition(parts[1]);
       if (!position) {
-        parseErrors.push(`Line ${index + 1}: Invalid position "${parts[1]}" (use GK, DEF, MID, or FWD)`);
+        parseErrors.push(`Line ${index + 1}: Invalid position "${parts[1]}" (use ${VALID_POSITIONS.join(', ')})`);
         return;
       }
 

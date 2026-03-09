@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter, Stack, RelativePathString } from 'expo-router';
-import { ArrowLeft, Check, Minus, Plus, Star, Users, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { ArrowLeft, Check, Minus, Plus, Star } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import { Player } from '@/types';
 import Colors from '@/constants/colors';
@@ -127,7 +127,7 @@ export default function AddHistoricalResultScreen() {
     teamA: 'Team A Players',
     teamB: 'Team B Players',
     score: 'Final Score',
-    motm: 'Man of the Match',
+    motm: 'Player of the Match',
   };
 
   const steps: Step[] = ['date', 'teamA', 'teamB', 'score', 'motm'];
@@ -272,8 +272,8 @@ export default function AddHistoricalResultScreen() {
 
   const renderMotmStep = () => (
     <View style={styles.stepContent}>
-      <Text style={styles.stepTitle}>Man of the Match</Text>
-      <Text style={styles.stepSubtitle}>Optional — tap a player to award MOTM</Text>
+      <Text style={styles.stepTitle}>Player of the Match</Text>
+      <Text style={styles.stepSubtitle}>Optional — tap a player to award POTM</Text>
 
       <Text style={[styles.motmTeamHeader, { color: Colors.teamA }]}>Team A</Text>
       {players.filter(p => teamAIds.includes(p.id)).map(p => {
@@ -323,7 +323,7 @@ export default function AddHistoricalResultScreen() {
         <View style={styles.motmBanner}>
           <Star size={14} color={Colors.gold} fill={Colors.gold} />
           <Text style={styles.motmBannerText}>
-            {allMatchPlayers.find(p => p.id === manOfMatchId)?.name} awarded MOTM
+            {allMatchPlayers.find(p => p.id === manOfMatchId)?.name} awarded POTM
           </Text>
         </View>
       )}
