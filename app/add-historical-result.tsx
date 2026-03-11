@@ -11,6 +11,7 @@ import {
 import { useRouter, Stack, RelativePathString } from 'expo-router';
 import { ArrowLeft, Check, Minus, Plus, Star } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
+import { useGroup } from '@/context/GroupContext';
 import { Player } from '@/types';
 import Colors from '@/constants/colors';
 import TuesdayPicker from '@/components/TuesdayPicker';
@@ -20,6 +21,9 @@ type Step = 'date' | 'teamA' | 'teamB' | 'score' | 'motm';
 export default function AddHistoricalResultScreen() {
   const router = useRouter();
   const { players, saveMatchResult } = useTNF();
+  const { activeGroup } = useGroup();
+
+  const playDay = activeGroup?.playDay ?? 'Tuesday';
 
   const [step, setStep] = useState<Step>('date');
   const [dateText, setDateText] = useState('');
@@ -162,8 +166,8 @@ export default function AddHistoricalResultScreen() {
   const renderDateStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>When was this match played?</Text>
-      <Text style={styles.stepSubtitle}>Select the Tuesday this match was played</Text>
-      <TuesdayPicker selectedDate={dateText} onSelect={setDateText} />
+      <Text style={styles.stepSubtitle}>Select the {playDay} this match was played</Text>
+      <TuesdayPicker selectedDate={dateText} onSelect={setDateText} playDay={playDay} />
     </View>
   );
 

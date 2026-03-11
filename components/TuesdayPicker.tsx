@@ -7,23 +7,43 @@ interface TuesdayPickerProps {
   selectedDate: string;
   onSelect: (date: string) => void;
   weeksBack?: number;
+  playDay?: string;
 }
 
-function getRecentTuesdays(weeksBack: number): Date[] {
-  const tuesdays: Date[] = [];
+const DAY_MAP: Record<string, number> = {
+  'Sunday': 0,
+  'Monday': 1,
+  'Tuesday': 2,
+  'Wednesday': 3,
+  'Thursday': 4,
+  'Friday': 5,
+  'Saturday': 6,
+};
+
+function getDayNumber(dayName: string): number {
+  return DAY_MAP[dayName] ?? 2;
+}
+
+function getRecentDays(weeksBack: number, targetDay: number): Date[] {
+  const days: Date[] = [];
   const today = new Date();
-  const dayOfWeek = today.getDay();
-  const daysToLastTuesday = (dayOfWeek + 5) % 7;
-  const lastTuesday = new Date(today);
-  lastTuesday.setDate(today.getDate() - daysToLastTuesday);
-  lastTuesday.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  const currentDayOfWeek = today.getDay();
+
+  let daysBack = (currentDayOfWeek - targetDay + 7) % 7;
+  if (daysBack === 0) {
+    daysBack = 0;
+  }
+
+  const lastTargetDay = new Date(today);
+  lastTargetDay.setDate(today.getDate() - daysBack);
 
   for (let i = 0; i < weeksBack; i++) {
-    const tuesday = new Date(lastTuesday);
-    tuesday.setDate(lastTuesday.getDate() - i * 7);
-    tuesdays.push(tuesday);
+    const day = new Date(lastTargetDay);
+    day.setDate(lastTargetDay.getDate() - i * 7);
+    days.push(day);
   }
-  return tuesdays;
+  return days;
 }
 
 function formatDate(date: Date): string {
@@ -35,44 +55,45 @@ function formatDate(date: Date): string {
   });
 }
 
-function getRelativeLabel(date: Date): string | null {
+function getRelativeLabel(date: Date, dayName: string): string | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diffMs = today.getTime() - date.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 7) return 'This Tuesday';
-  if (diffDays < 14) return 'Last Tuesday';
+  if (diffDays < 7) return `This ${dayName}`;
+  if (diffDays < 14) return `Last ${dayName}`;
   if (diffDays < 21) return '2 weeks ago';
   if (diffDays < 28) return '3 weeks ago';
   return null;
 }
 
-export default function TuesdayPicker({ selectedDate, onSelect, weeksBack = 16 }: TuesdayPickerProps) {
-  const tuesdays = useMemo(() => getRecentTuesdays(weeksBack), [weeksBack]);
+export default function TuesdayPicker({ selectedDate, onSelect, weeksBack = 16, playDay = 'Tuesday' }: TuesdayPickerProps) {
+  const targetDayNum = getDayNumber(playDay);
+  const recentDays = useMemo(() => getRecentDays(weeksBack, targetDayNum), [weeksBack, targetDayNum]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Calendar size={16} color={Colors.textSecondary} />
-        <Text style={styles.headerText}>Select a Tuesday</Text>
+        <Text style={styles.headerText}>Select a {playDay}</Text>
       </View>
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {tuesdays.map((date) => {
+        {recentDays.map((date) => {
           const formatted = formatDate(date);
           const isSelected = selectedDate === formatted;
-          const label = getRelativeLabel(date);
+          const label = getRelativeLabel(date, playDay);
 
           return (
             <Pressable
               key={formatted}
               style={[styles.row, isSelected && styles.rowSelected]}
               onPress={() => onSelect(formatted)}
-              testID={`tuesday-${formatted}`}
+              testID={`day-${formatted}`}
             >
               <View style={styles.rowLeft}>
                 <View style={[styles.dot, isSelected && styles.dotSelected]} />

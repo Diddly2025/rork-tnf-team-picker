@@ -32,15 +32,13 @@ import {
   Trash2,
   X,
   Tag,
-  ArrowLeftRight,
-  Check,
   Banknote,
 } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
-import { SPORT_CONFIGS, getSportLabel } from '@/constants/sports';
+import { SPORT_CONFIGS } from '@/constants/sports';
 import Colors from '@/constants/colors';
-import { Expense, Group } from '@/types';
+import { Expense } from '@/types';
 
 type ActiveTab = 'kitty' | 'players' | 'expenses' | 'cloud';
 
@@ -90,7 +88,7 @@ export default function FinanceScreen() {
   const [expenseDesc, setExpenseDesc] = useState('');
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCategory, setExpenseCategory] = useState<ExpenseCategory>('equipment');
-  const [showSwitcher, setShowSwitcher] = useState(false);
+
 
   const totalCollected = getTotalCollected();
   const kittyBalance = getKittyBalance();
@@ -98,15 +96,9 @@ export default function FinanceScreen() {
   const totalOutstanding = getTotalOutstanding();
   const costPerSession = activeGroup?.costPerSession ?? subsSettings.costPerGame;
 
-  const groupConfig = activeGroup ? SPORT_CONFIGS[activeGroup.sport] : null;
-  const groupLabel = activeGroup
-    ? getSportLabel(activeGroup.sport, activeGroup.customSport)
-    : '';
-
-  const handleSwitchGroup = useCallback((group: Group) => {
-    setActiveGroup(group.id);
-    setShowSwitcher(false);
-    console.log('[Finance] Switched to group:', group.name);
+  const handleSwitchGroup = useCallback((groupId: string) => {
+    setActiveGroup(groupId);
+    console.log('[Finance] Switched to group:', groupId);
   }, [setActiveGroup]);
 
   const sortedPlayersByPaid = useMemo(() => {
@@ -537,66 +529,36 @@ export default function FinanceScreen() {
 
   return (
     <View style={styles.container}>
-      <Pressable
-        style={styles.groupBanner}
-        onPress={() => setShowSwitcher(true)}
-        testID="finance-group-switcher-btn"
-      >
-        <View style={styles.groupBannerLeft}>
-          {groupConfig && <Text style={styles.groupBannerEmoji}>{groupConfig.emoji}</Text>}
-          <View style={styles.groupBannerTextWrap}>
-            <Text style={styles.groupBannerName} numberOfLines={1}>
-              {activeGroup?.name ?? 'No Group'}
-            </Text>
-            <Text style={styles.groupBannerSport}>{groupLabel}</Text>
-          </View>
-        </View>
-        {groups.length > 1 && (
-          <View style={styles.switchBtnWrap}>
-            <ArrowLeftRight size={14} color={Colors.gold} />
-            <Text style={styles.switchBtnLabel}>Switch</Text>
-          </View>
-        )}
-      </Pressable>
-
-      <Modal
-        visible={showSwitcher}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSwitcher(false)}
-      >
-        <Pressable style={styles.switcherOverlay} onPress={() => setShowSwitcher(false)}>
-          <View style={styles.switcherContent}>
-            <Text style={styles.switcherTitle}>Switch Group</Text>
+      {groups.length > 1 && (
+        <View style={styles.filterSection}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+          >
             {groups.map((g) => {
               const config = SPORT_CONFIGS[g.sport];
               const isActive = g.id === activeGroupId;
               return (
                 <Pressable
                   key={g.id}
-                  style={[styles.switcherRow, isActive && styles.switcherRowActive]}
-                  onPress={() => handleSwitchGroup(g)}
+                  style={[styles.filterChip, isActive && styles.filterChipActive]}
+                  onPress={() => handleSwitchGroup(g.id)}
+                  testID={`finance-filter-${g.id}`}
                 >
-                  <Text style={styles.switcherEmoji}>{config.emoji}</Text>
-                  <View style={styles.switcherInfo}>
-                    <Text style={[styles.switcherName, isActive && styles.switcherNameActive]}>
-                      {g.name}
-                    </Text>
-                    <Text style={styles.switcherMeta}>
-                      {getSportLabel(g.sport, g.customSport)} · {g.playersPerTeam}v{g.playersPerTeam}
-                    </Text>
-                  </View>
-                  {isActive && (
-                    <View style={styles.switcherCheck}>
-                      <Check size={14} color="#fff" />
-                    </View>
-                  )}
+                  <Text style={styles.filterChipEmoji}>{config.emoji}</Text>
+                  <Text
+                    style={[styles.filterChipText, isActive && styles.filterChipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {g.name}
+                  </Text>
                 </Pressable>
               );
             })}
-          </View>
-        </Pressable>
-      </Modal>
+          </ScrollView>
+        </View>
+      )}
 
       <View style={styles.topSection}>
         <View style={styles.kittyHero}>
@@ -763,119 +725,43 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  groupBanner: {
+  filterSection: {
+    paddingTop: 12,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+    backgroundColor: Colors.cardBackground,
+  },
+  filterScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginTop: 12,
+    gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
-    borderWidth: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
     borderColor: Colors.cardBorder,
   },
-  groupBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
+  filterChipActive: {
+    backgroundColor: 'rgba(200, 160, 42, 0.12)',
+    borderColor: Colors.gold,
   },
-  groupBannerTextWrap: {
-    flex: 1,
+  filterChipEmoji: {
+    fontSize: 16,
   },
-  groupBannerEmoji: {
-    fontSize: 22,
-  },
-  groupBannerName: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  groupBannerSport: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  switchBtnWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(200, 160, 42, 0.1)',
-  },
-  switchBtnLabel: {
-    fontSize: 12,
+  filterChipText: {
+    fontSize: 13,
     fontWeight: '600' as const,
-    color: Colors.gold,
-  },
-  switcherOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  switcherContent: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  switcherTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    marginBottom: 16,
-    textAlign: 'center' as const,
-  },
-  switcherRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 6,
-    gap: 12,
-  },
-  switcherRowActive: {
-    backgroundColor: 'rgba(200, 160, 42, 0.08)',
-  },
-  switcherEmoji: {
-    fontSize: 24,
-  },
-  switcherInfo: {
-    flex: 1,
-  },
-  switcherName: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.text,
-  },
-  switcherNameActive: {
-    color: Colors.gold,
-  },
-  switcherMeta: {
-    fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 2,
+    maxWidth: 120,
   },
-  switcherCheck: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
+  filterChipTextActive: {
+    color: Colors.gold,
   },
   topSection: {
     backgroundColor: Colors.cardBackground,

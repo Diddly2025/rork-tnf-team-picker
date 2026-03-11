@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -8,27 +8,25 @@ import {
   Alert,
   Share,
   Platform,
-  Modal,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Clock, Trash2, Download, Trophy, Plus, Star, Pencil, ChevronDown, ChevronUp, ArrowLeftRight, Check } from 'lucide-react-native';
+import { Clock, Trash2, Download, Trophy, Plus, Star, Pencil, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
 import { SPORT_CONFIGS, getSportLabel } from '@/constants/sports';
-import { MatchResult, Group } from '@/types';
+import { MatchResult } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function HistoryScreen() {
   const router = useRouter();
   const { matchHistory, deleteMatchResult, getExportData, players } = useTNF();
-  const { groups, activeGroup, activeGroupId, setActiveGroup } = useGroup();
+  const { groups, activeGroupId, setActiveGroup } = useGroup();
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
-  const [showSwitcher, setShowSwitcher] = useState(false);
 
-  const handleSwitchGroup = useCallback((group: Group) => {
-    setActiveGroup(group.id);
-    setShowSwitcher(false);
-    console.log('[History] Switched to group:', group.name);
+  const handleSwitchGroup = useCallback((groupId: string) => {
+    setActiveGroup(groupId);
+    console.log('[History] Switched to group:', groupId);
   }, [setActiveGroup]);
 
   const toggleExpanded = useCallback((id: string) => {
@@ -92,6 +90,8 @@ export default function HistoryScreen() {
     const player = players.find(p => p.id === manOfMatchId);
     return player?.name ?? null;
   }, [players]);
+
+  const activeGroup = useMemo(() => groups.find(g => g.id === activeGroupId) ?? null, [groups, activeGroupId]);
 
   const renderMatch = useCallback(({ item }: { item: MatchResult }) => {
     const motmName = getMotmName(item.manOfMatchId);
@@ -189,7 +189,7 @@ export default function HistoryScreen() {
       <Trophy size={64} color={Colors.textMuted} />
       <Text style={styles.emptyTitle}>No Matches Played</Text>
       <Text style={styles.emptyText}>
-        Generate or create teams, then record the match result
+        {activeGroup ? `No results recorded for ${activeGroup.name}` : 'Generate or create teams, then record the match result'}
       </Text>
       <Pressable
         style={styles.emptyAddButton}
@@ -206,73 +206,52 @@ export default function HistoryScreen() {
   const teamAWins = matchHistory.filter(m => m.scoreA > m.scoreB).length;
   const teamBWins = matchHistory.filter(m => m.scoreB > m.scoreA).length;
 
-  const groupConfig = activeGroup ? SPORT_CONFIGS[activeGroup.sport] : null;
-  const groupLabel = activeGroup
-    ? getSportLabel(activeGroup.sport, activeGroup.customSport)
-    : '';
-
   return (
     <View style={styles.container}>
-      <Pressable
-        style={styles.groupBanner}
-        onPress={() => setShowSwitcher(true)}
-        testID="group-switcher-btn"
-      >
-        <View style={styles.groupBannerLeft}>
-          {groupConfig && <Text style={styles.groupBannerEmoji}>{groupConfig.emoji}</Text>}
-          <View>
-            <Text style={styles.groupBannerName} numberOfLines={1}>
-              {activeGroup?.name ?? 'No Group'}
-            </Text>
-            <Text style={styles.groupBannerSport}>{groupLabel}</Text>
-          </View>
-        </View>
-        {groups.length > 1 && (
-          <View style={styles.switchBtn}>
-            <ArrowLeftRight size={14} color={Colors.gold} />
-            <Text style={styles.switchBtnText}>Switch</Text>
-          </View>
-        )}
-      </Pressable>
-
-      <Modal
-        visible={showSwitcher}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSwitcher(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setShowSwitcher(false)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Switch Group</Text>
+      {groups.length > 1 && (
+        <View style={styles.filterSection}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScroll}
+          >
             {groups.map((g) => {
               const config = SPORT_CONFIGS[g.sport];
               const isActive = g.id === activeGroupId;
               return (
                 <Pressable
                   key={g.id}
-                  style={[styles.modalGroupRow, isActive && styles.modalGroupRowActive]}
-                  onPress={() => handleSwitchGroup(g)}
+                  style={[styles.filterChip, isActive && styles.filterChipActive]}
+                  onPress={() => handleSwitchGroup(g.id)}
+                  testID={`history-filter-${g.id}`}
                 >
-                  <Text style={styles.modalGroupEmoji}>{config.emoji}</Text>
-                  <View style={styles.modalGroupInfo}>
-                    <Text style={[styles.modalGroupName, isActive && styles.modalGroupNameActive]}>
-                      {g.name}
-                    </Text>
-                    <Text style={styles.modalGroupMeta}>
-                      {getSportLabel(g.sport, g.customSport)} · {g.playersPerTeam}v{g.playersPerTeam}
-                    </Text>
-                  </View>
-                  {isActive && (
-                    <View style={styles.modalCheckmark}>
-                      <Check size={14} color="#fff" />
-                    </View>
-                  )}
+                  <Text style={styles.filterChipEmoji}>{config.emoji}</Text>
+                  <Text
+                    style={[styles.filterChipText, isActive && styles.filterChipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {g.name}
+                  </Text>
                 </Pressable>
               );
             })}
+          </ScrollView>
+        </View>
+      )}
+
+      {groups.length <= 1 && activeGroup && (
+        <View style={styles.singleGroupBanner}>
+          {SPORT_CONFIGS[activeGroup.sport] && (
+            <Text style={styles.singleGroupEmoji}>{SPORT_CONFIGS[activeGroup.sport].emoji}</Text>
+          )}
+          <View>
+            <Text style={styles.singleGroupName}>{activeGroup.name}</Text>
+            <Text style={styles.singleGroupSport}>
+              {getSportLabel(activeGroup.sport, activeGroup.customSport)}
+            </Text>
           </View>
-        </Pressable>
-      </Modal>
+        </View>
+      )}
 
       {matchHistory.length > 0 && (
         <View style={styles.summaryBar}>
@@ -326,11 +305,75 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  filterSection: {
+    paddingTop: 12,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+    backgroundColor: Colors.cardBackground,
+  },
+  filterScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: Colors.cardBorder,
+  },
+  filterChipActive: {
+    backgroundColor: 'rgba(200, 160, 42, 0.12)',
+    borderColor: Colors.gold,
+  },
+  filterChipEmoji: {
+    fontSize: 16,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    maxWidth: 120,
+  },
+  filterChipTextActive: {
+    color: Colors.gold,
+  },
+  singleGroupBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  singleGroupEmoji: {
+    fontSize: 20,
+  },
+  singleGroupName: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  singleGroupSport: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
   summaryBar: {
     flexDirection: 'row',
     backgroundColor: Colors.cardBackground,
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 12,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -572,116 +615,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-  },
-  groupBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  groupBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  groupBannerEmoji: {
-    fontSize: 22,
-  },
-  groupBannerName: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  groupBannerSport: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  switchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(200, 160, 42, 0.1)',
-  },
-  switchBtnText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: Colors.gold,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  modalGroupRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 6,
-    gap: 12,
-  },
-  modalGroupRowActive: {
-    backgroundColor: 'rgba(200, 160, 42, 0.08)',
-  },
-  modalGroupEmoji: {
-    fontSize: 24,
-  },
-  modalGroupInfo: {
-    flex: 1,
-  },
-  modalGroupName: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.text,
-  },
-  modalGroupNameActive: {
-    color: Colors.gold,
-  },
-  modalGroupMeta: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  modalCheckmark: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
