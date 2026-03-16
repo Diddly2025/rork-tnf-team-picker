@@ -1035,6 +1035,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    flex: 1,
+    maxHeight: '92%',
   },
   squadModalHeader: {
     flexDirection: 'row',
@@ -1069,13 +1071,15 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   squadGrid: {
+    flex: 1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    alignContent: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 16,
-    paddingBottom: 32,
-    gap: 4,
+    paddingBottom: 40,
+    gap: 6,
   },
   squadGridItem: {
     alignItems: 'center',
