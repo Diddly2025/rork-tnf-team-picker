@@ -10,7 +10,7 @@ import {
   Animated,
 } from 'react-native';
 import { useRouter, RelativePathString } from 'expo-router';
-import { CheckCircle, Circle, Users, Shuffle, Edit3, Ban, Plus, X, AlertTriangle, UserX, Link2, Eye, Star, TrendingUp } from 'lucide-react-native';
+import { CheckCircle, Circle, Users, Shuffle, Edit3, Ban, Plus, X, AlertTriangle, UserX, Link2, Eye } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import PlayerCard from '@/components/PlayerCard';
 import { Player, Restriction } from '@/types';
@@ -48,10 +48,6 @@ export default function MatchDayScreen() {
   const halfCount = Math.ceil(selectedPlayerIds.length / 2);
 
   const selectedSquad = players.filter(p => selectedPlayerIds.includes(p.id));
-  const avgRating = selectedSquad.length > 0
-    ? (selectedSquad.reduce((sum, p) => sum + p.rating, 0) / selectedSquad.length).toFixed(1)
-    : '0';
-  const topRated = [...selectedSquad].sort((a, b) => b.rating - a.rating);
 
   useEffect(() => {
     if (selectedPlayerIds.length === maxPlayers && !restrictionBannerShown && restrictions.length > 0) {
@@ -368,65 +364,13 @@ export default function MatchDayScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.squadStatsRow}>
-              <View style={styles.squadStatCard}>
-                <Users size={16} color={Colors.gold} />
-                <Text style={styles.squadStatValue}>{selectedSquad.length}</Text>
-                <Text style={styles.squadStatLabel}>Players</Text>
-              </View>
-              <View style={styles.squadStatCard}>
-                <Star size={16} color={Colors.gold} />
-                <Text style={styles.squadStatValue}>{avgRating}</Text>
-                <Text style={styles.squadStatLabel}>Avg Rating</Text>
-              </View>
-              <View style={styles.squadStatCard}>
-                <TrendingUp size={16} color={Colors.gold} />
-                <Text style={styles.squadStatValue}>{topRated[0]?.rating ?? '-'}</Text>
-                <Text style={styles.squadStatLabel}>Highest</Text>
-              </View>
+            <View style={styles.squadGrid}>
+              {selectedSquad.map((player) => (
+                <View key={player.id} style={styles.squadGridItem}>
+                  <PlayerCard player={player} size="small" />
+                </View>
+              ))}
             </View>
-
-            <FlatList
-              data={topRated}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.squadList}
-              renderItem={({ item, index }) => {
-                const appearances = getPlayerAppearances(item.id);
-                return (
-                  <View style={styles.squadPlayerRow}>
-                    <View style={styles.squadRankBadge}>
-                      <Text style={styles.squadRankText}>{index + 1}</Text>
-                    </View>
-                    <PlayerCard player={item} size="small" />
-                    <View style={styles.squadPlayerInfo}>
-                      <Text style={styles.squadPlayerName}>{item.name}</Text>
-                      <View style={styles.squadPlayerMeta}>
-                        <Text style={styles.squadPlayerPosition}>{item.position}</Text>
-                        <View style={styles.squadDot} />
-                        <Text style={styles.squadPlayerRating}>{item.rating} OVR</Text>
-                        {appearances > 0 && (
-                          <>
-                            <View style={styles.squadDot} />
-                            <Text style={styles.squadPlayerApps}>{appearances} app{appearances !== 1 ? 's' : ''}</Text>
-                          </>
-                        )}
-                      </View>
-                    </View>
-                    <View style={[
-                      styles.squadRatingPill,
-                      item.rating >= 85 ? styles.squadRatingGold :
-                      item.rating >= 70 ? styles.squadRatingSilver : styles.squadRatingBronze
-                    ]}>
-                      <Text style={[
-                        styles.squadRatingPillText,
-                        item.rating >= 85 ? styles.squadRatingGoldText :
-                        item.rating >= 70 ? styles.squadRatingSilverText : styles.squadRatingBronzeText
-                      ]}>{item.rating}</Text>
-                    </View>
-                  </View>
-                );
-              }}
-            />
           </View>
         </View>
       </Modal>
@@ -1091,8 +1035,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '92%',
-    flex: 1,
   },
   squadModalHeader: {
     flexDirection: 'row',
@@ -1126,124 +1068,16 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 1,
   },
-  squadStatsRow: {
+  squadGrid: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 10,
-  },
-  squadStatCard: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    paddingVertical: 12,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  squadStatValue: {
-    fontSize: 20,
-    fontWeight: '800' as const,
-    color: Colors.text,
-  },
-  squadStatLabel: {
-    fontSize: 10,
-    fontWeight: '600' as const,
-    color: Colors.textMuted,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-  },
-  squadList: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-  },
-  squadPlayerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  squadRankBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.cardBorder,
-    alignItems: 'center',
+    flexWrap: 'wrap',
     justifyContent: 'center',
-    marginRight: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 16,
+    paddingBottom: 32,
+    gap: 4,
   },
-  squadRankText: {
-    fontSize: 11,
-    fontWeight: '700' as const,
-    color: Colors.textSecondary,
-  },
-  squadPlayerInfo: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  squadPlayerName: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.text,
-  },
-  squadPlayerMeta: {
-    flexDirection: 'row',
+  squadGridItem: {
     alignItems: 'center',
-    marginTop: 3,
-    gap: 6,
-  },
-  squadPlayerPosition: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    fontWeight: '500' as const,
-  },
-  squadDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: Colors.textMuted,
-  },
-  squadPlayerRating: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    fontWeight: '500' as const,
-  },
-  squadPlayerApps: {
-    fontSize: 11,
-    color: Colors.textMuted,
-  },
-  squadRatingPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    minWidth: 42,
-    alignItems: 'center',
-  },
-  squadRatingPillText: {
-    fontSize: 14,
-    fontWeight: '800' as const,
-  },
-  squadRatingGold: {
-    backgroundColor: 'rgba(200, 160, 42, 0.12)',
-  },
-  squadRatingGoldText: {
-    color: Colors.gold,
-  },
-  squadRatingSilver: {
-    backgroundColor: 'rgba(107, 114, 128, 0.1)',
-  },
-  squadRatingSilverText: {
-    color: Colors.silver,
-  },
-  squadRatingBronze: {
-    backgroundColor: 'rgba(181, 101, 29, 0.1)',
-  },
-  squadRatingBronzeText: {
-    color: Colors.bronze,
   },
 });
