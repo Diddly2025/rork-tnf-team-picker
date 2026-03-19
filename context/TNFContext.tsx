@@ -21,6 +21,7 @@ import {
   setCloudSyncEnabled as saveCloudSyncPref,
 } from '@/utils/supabaseSync';
 import { isSupabaseConfigured } from '@/utils/supabase';
+import { migratePlayerPhotos, isLocalUri } from '@/utils/photoUpload';
 
 function sk(groupId: string | null, suffix: string): string {
   return `pd_${groupId ?? 'none'}_${suffix}`;
@@ -38,6 +39,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState<boolean>(false);
   const initialSyncDone = useRef(false);
   const cloudSyncRef = useRef(false);
+  const photoMigrationDone = useRef(false);
 
   const sportConfig: SportConfig = useMemo(() => {
     return getSportConfig(activeGroup?.sport ?? 'football');
@@ -52,6 +54,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     setManualTeamA([]);
     setManualTeamB([]);
     initialSyncDone.current = false;
+    photoMigrationDone.current = false;
   }, [activeGroupId]);
 
   useEffect(() => {
@@ -320,12 +323,52 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     return { ...defaults, ...(subsSettingsQuery.data ?? {}) };
   }, [subsSettingsQuery.data]);
 
+  const migratePhotosIfNeeded = useCallback(async (currentPlayers: Player[]): Promise<Player[]> => {
+    if (!isSupabaseConfigured() || !cloudSyncRef.current || !gid) return currentPlayers;
+    const hasLocalPhotos = currentPlayers.some(p => p.photo && isLocalUri(p.photo));
+    if (!hasLocalPhotos) return currentPlayers;
+
+    console.log('[PhotoMigration] Starting migration for players with local photos...');
+    let updatedPlayers = [...currentPlayers];
+    await migratePlayerPhotos(currentPlayers, (playerId, newUrl) => {
+      updatedPlayers = updatedPlayers.map(p =>
+        p.id === playerId ? { ...p, photo: newUrl } : p
+      );
+    });
+
+    const changed = updatedPlayers.some((p, i) => p.photo !== currentPlayers[i]?.photo);
+    if (changed) {
+      await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(updatedPlayers));
+      queryClient.setQueryData(['players', gid], updatedPlayers);
+      console.log('[PhotoMigration] Updated players with cloud photo URLs');
+    }
+    return updatedPlayers;
+  }, [gid, queryClient]);
+
+  useEffect(() => {
+    if (
+      !photoMigrationDone.current &&
+      initialSyncDone.current &&
+      cloudSyncEnabled &&
+      isSupabaseConfigured() &&
+      players.length > 0 &&
+      players.some(p => p.photo && isLocalUri(p.photo))
+    ) {
+      photoMigrationDone.current = true;
+      console.log('[PhotoMigration] Auto-migrating local photos to cloud...');
+      migratePhotosIfNeeded(players).catch(e =>
+        console.log('[PhotoMigration] Auto-migration failed:', e)
+      );
+    }
+  }, [players, cloudSyncEnabled, migratePhotosIfNeeded]);
+
   const forceCloudSync = useCallback(async () => {
     if (!isSupabaseConfigured() || !cloudSyncRef.current) return;
     setSyncStatus('syncing');
     try {
+      const migratedPlayers = await migratePhotosIfNeeded(players);
       await Promise.all([
-        syncPlayersToSupabase(players),
+        syncPlayersToSupabase(migratedPlayers),
         syncRestrictionsToSupabase(restrictions),
         syncMatchResultsToSupabase(matchHistory),
         syncSubsPaymentsToSupabase(subsPayments),
@@ -337,7 +380,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       setSyncStatus('error');
       console.log('[Sync] Full sync failed:', e);
     }
-  }, [players, restrictions, matchHistory, subsPayments, subsSettings]);
+  }, [players, restrictions, matchHistory, subsPayments, subsSettings, migratePhotosIfNeeded]);
 
   const forceCloudRestore = useCallback(async () => {
     if (!isSupabaseConfigured() || !cloudSyncRef.current || !gid) return;
