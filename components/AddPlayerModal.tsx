@@ -11,16 +11,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
-import { X, Camera, Cloud } from 'lucide-react-native';
+import { X, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Paths, File as FSFile, Directory } from 'expo-file-system';
 import { Player } from '@/types';
 import { useTNF } from '@/context/TNFContext';
 import Colors from '@/constants/colors';
-import { uploadPlayerPhoto, isLocalUri } from '@/utils/photoUpload';
-import { isSupabaseConfigured } from '@/utils/supabase';
 
 interface AddPlayerModalProps {
   visible: boolean;
@@ -30,14 +26,13 @@ interface AddPlayerModalProps {
 }
 
 export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }: AddPlayerModalProps) {
-  const { sportConfig, cloudSyncEnabled } = useTNF();
+  const { sportConfig } = useTNF();
   const positions = useMemo(() => sportConfig.hasPositions ? sportConfig.positions : [], [sportConfig.hasPositions, sportConfig.positions]);
 
   const [name, setName] = useState('');
   const [position, setPosition] = useState(positions[0] ?? 'Player');
   const [rating, setRating] = useState('70');
   const [photo, setPhoto] = useState<string | undefined>();
-  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (editPlayer) {
@@ -51,7 +46,6 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
       setRating('70');
       setPhoto(undefined);
     }
-    setIsUploading(false);
   }, [editPlayer, visible, positions]);
 
   const pickImage = async () => {
@@ -63,30 +57,11 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
     });
 
     if (!result.canceled && result.assets[0]) {
-      const tempUri = result.assets[0].uri;
-      try {
-        if (Platform.OS !== 'web') {
-          const photosDir = new Directory(Paths.document, 'player_photos');
-          if (!photosDir.exists) {
-            photosDir.create();
-          }
-          const filename = `photo_${Date.now()}.jpg`;
-          const tempFile = new FSFile(tempUri);
-          const permanentFile = new FSFile(photosDir, filename);
-          tempFile.copy(permanentFile);
-          console.log('[AddPlayer] Copied photo to permanent path:', permanentFile.uri);
-          setPhoto(permanentFile.uri);
-        } else {
-          setPhoto(tempUri);
-        }
-      } catch (e) {
-        console.log('[AddPlayer] Failed to copy photo to permanent storage, using temp URI:', e);
-        setPhoto(tempUri);
-      }
+      setPhoto(result.assets[0].uri);
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Please enter a player name');
       return;
@@ -98,31 +73,11 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
       return;
     }
 
-    let finalPhoto = photo;
-
-    if (photo && isLocalUri(photo) && cloudSyncEnabled && isSupabaseConfigured()) {
-      setIsUploading(true);
-      try {
-        const playerId = editPlayer?.id ?? `player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const cloudUrl = await uploadPlayerPhoto(playerId, photo);
-        if (cloudUrl) {
-          finalPhoto = cloudUrl;
-          console.log('[AddPlayer] Photo uploaded to cloud:', cloudUrl);
-        } else {
-          console.log('[AddPlayer] Photo upload failed, keeping local URI');
-        }
-      } catch (e) {
-        console.log('[AddPlayer] Photo upload error:', e);
-      } finally {
-        setIsUploading(false);
-      }
-    }
-
     onSave({
       name: name.trim(),
       position: sportConfig.hasPositions ? position : 'Player',
       rating: ratingNum,
-      photo: finalPhoto,
+      photo,
     });
     onClose();
   };
@@ -149,14 +104,7 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <Pressable style={styles.photoSection} onPress={pickImage}>
               {photo ? (
-                <View>
-                  <Image source={{ uri: photo }} style={styles.photoPreview} />
-                  {photo && !isLocalUri(photo) && (
-                    <View style={styles.cloudBadge}>
-                      <Cloud size={12} color="#fff" />
-                    </View>
-                  )}
-                </View>
+                <Image source={{ uri: photo }} style={styles.photoPreview} />
               ) : (
                 <View style={styles.photoPlaceholder}>
                   <Camera size={32} color={Colors.gold} />
@@ -215,17 +163,10 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
             </View>
           </ScrollView>
 
-          <Pressable style={[styles.saveButton, isUploading && styles.saveButtonDisabled]} onPress={handleSave} disabled={isUploading}>
-            {isUploading ? (
-              <View style={styles.uploadingRow}>
-                <ActivityIndicator size="small" color={Colors.background} />
-                <Text style={styles.saveButtonText}>  Uploading Photo...</Text>
-              </View>
-            ) : (
-              <Text style={styles.saveButtonText}>
-                {editPlayer ? 'Update Player' : 'Add Player'}
-              </Text>
-            )}
+          <Pressable style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>
+              {editPlayer ? 'Update Player' : 'Add Player'}
+            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -348,25 +289,5 @@ const styles = StyleSheet.create({
     color: Colors.background,
     fontSize: 16,
     fontWeight: '700' as const,
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  uploadingRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-  },
-  cloudBadge: {
-    position: 'absolute' as const,
-    bottom: 2,
-    right: 2,
-    backgroundColor: Colors.accent,
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    borderWidth: 2,
-    borderColor: Colors.cardBackground,
   },
 });
