@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
 import { User } from 'lucide-react-native';
 import { Player } from '@/types';
@@ -53,6 +53,12 @@ export default function PlayerCard({
   };
   
   const d = dimensions[size];
+  const [imageError, setImageError] = useState(false);
+
+  const handleImageError = useCallback(() => {
+    console.log('[PlayerCard] Image failed to load for:', player.name, player.photo?.substring(0, 60));
+    setImageError(true);
+  }, [player.name, player.photo]);
 
   return (
     <Pressable 
@@ -67,11 +73,12 @@ export default function PlayerCard({
     >
       <View style={[styles.card, { backgroundColor: colors.bg, borderColor: colors.primary, borderWidth: d.borderW, borderRadius: size === 'small' ? 6 : 8 }]}>
         <View style={[styles.photoContainer, { width: d.photoSize, height: d.photoSize, marginTop: d.pad, borderRadius: size === 'small' ? 4 : 6 }]}>
-          {player.photo ? (
+          {player.photo && !imageError ? (
             <Image 
               source={{ uri: player.photo }} 
               style={[styles.photo, { width: d.photoSize, height: d.photoSize, borderRadius: size === 'small' ? 4 : 6 }]}
               resizeMode="cover"
+              onError={handleImageError}
             />
           ) : (
             <View style={[styles.photoPlaceholder, { width: d.photoSize, height: d.photoSize, backgroundColor: colors.bgDark, borderRadius: size === 'small' ? 4 : 6 }]}>

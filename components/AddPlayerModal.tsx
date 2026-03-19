@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { X, Camera, Cloud } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Paths, File as FSFile, Directory } from 'expo-file-system';
 import { Player } from '@/types';
 import { useTNF } from '@/context/TNFContext';
 import Colors from '@/constants/colors';
@@ -62,7 +63,26 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhoto(result.assets[0].uri);
+      const tempUri = result.assets[0].uri;
+      try {
+        if (Platform.OS !== 'web') {
+          const photosDir = new Directory(Paths.document, 'player_photos');
+          if (!photosDir.exists) {
+            photosDir.create();
+          }
+          const filename = `photo_${Date.now()}.jpg`;
+          const tempFile = new FSFile(tempUri);
+          const permanentFile = new FSFile(photosDir, filename);
+          tempFile.copy(permanentFile);
+          console.log('[AddPlayer] Copied photo to permanent path:', permanentFile.uri);
+          setPhoto(permanentFile.uri);
+        } else {
+          setPhoto(tempUri);
+        }
+      } catch (e) {
+        console.log('[AddPlayer] Failed to copy photo to permanent storage, using temp URI:', e);
+        setPhoto(tempUri);
+      }
     }
   };
 
