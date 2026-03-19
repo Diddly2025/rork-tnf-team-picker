@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Image, Pressable, ImageErrorEventData, NativeSyntheticEvent } from 'react-native';
 import { User } from 'lucide-react-native';
 import { Player } from '@/types';
 import { getRatingTier, getPositionColor } from '@/utils/teamGenerator';
+import { getEffectivePhoto } from '@/utils/playerPhoto';
 
 interface PlayerCardProps {
   player: Player;
@@ -53,6 +54,15 @@ export default function PlayerCard({
   };
   
   const d = dimensions[size];
+  const photoUrl = getEffectivePhoto(player.name, player.photo);
+  const [photoError, setPhotoError] = useState(false);
+
+  const handleImageError = useCallback((_e: NativeSyntheticEvent<ImageErrorEventData>) => {
+    console.log(`[PlayerCard] Photo failed to load for ${player.name}`);
+    setPhotoError(true);
+  }, [player.name]);
+
+  const hasPhoto = photoUrl.length > 0 && !photoError;
 
   return (
     <Pressable 
@@ -67,11 +77,12 @@ export default function PlayerCard({
     >
       <View style={[styles.card, { backgroundColor: colors.bg, borderColor: colors.primary, borderWidth: d.borderW, borderRadius: size === 'small' ? 6 : 8 }]}>
         <View style={[styles.photoContainer, { width: d.photoSize, height: d.photoSize, marginTop: d.pad, borderRadius: size === 'small' ? 4 : 6 }]}>
-          {player.photo ? (
+          {hasPhoto ? (
             <Image 
-              source={{ uri: player.photo }} 
+              source={{ uri: photoUrl }} 
               style={[styles.photo, { width: d.photoSize, height: d.photoSize, borderRadius: size === 'small' ? 4 : 6 }]}
               resizeMode="cover"
+              onError={handleImageError}
             />
           ) : (
             <View style={[styles.photoPlaceholder, { width: d.photoSize, height: d.photoSize, backgroundColor: colors.bgDark, borderRadius: size === 'small' ? 4 : 6 }]}>
