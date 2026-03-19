@@ -45,7 +45,7 @@ export async function syncPlayersToSupabase(players: Player[]): Promise<void> {
       name: p.name,
       position: p.position,
       rating: p.rating,
-      photo: p.photo ?? null,
+      photo_url: p.photo ?? null,
       created_at: p.createdAt,
     }));
     const { error } = await supabase.from('players').upsert(rows);
@@ -154,7 +154,7 @@ export async function fetchPlayersFromSupabase(): Promise<Player[] | null> {
       name: row.name as string,
       position: row.position as Player['position'],
       rating: Number(row.rating),
-      photo: (row.photo as string) ?? undefined,
+      photo: (row.photo_url as string) ?? (row.photo as string) ?? undefined,
       createdAt: Number(row.created_at),
     }));
   } catch (e) {

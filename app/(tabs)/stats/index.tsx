@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Trophy, Star, TrendingUp, Users, Award, Activity } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
+import PlayerAvatar from '@/components/PlayerAvatar';
 import Colors from '@/constants/colors';
 
 type Tab = 'appearances' | 'wins' | 'motm';
@@ -52,8 +53,9 @@ export default function StatsScreen() {
     return allMatchPlayers.map(mp => {
       const registered = players.find(p => p.id === mp.id);
       const playerRef = registered ?? { id: mp.id, name: mp.name, position: mp.position, rating: 0, createdAt: 0 };
-      return {
+    return {
         player: playerRef,
+        photo: registered?.photo,
         appearances: getPlayerAppearances(mp.id),
         wins: getPlayerWins(mp.id),
         draws: getPlayerDraws(mp.id),
@@ -109,6 +111,12 @@ export default function StatsScreen() {
             {index + 1}
           </Text>
         </View>
+
+        <PlayerAvatar
+          name={item.player.name}
+          photoUrl={item.photo}
+          size={32}
+        />
 
         <View style={styles.playerInfo}>
           <Text style={styles.playerName}>{item.player.name}</Text>

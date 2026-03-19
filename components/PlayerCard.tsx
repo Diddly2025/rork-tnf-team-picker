@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
-import { User } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Player } from '@/types';
 import { getRatingTier, getPositionColor } from '@/utils/teamGenerator';
+import PlayerAvatar from './PlayerAvatar';
 
 interface PlayerCardProps {
   player: Player;
@@ -66,18 +66,14 @@ export default function PlayerCard({
       ]}
     >
       <View style={[styles.card, { backgroundColor: colors.bg, borderColor: colors.primary, borderWidth: d.borderW, borderRadius: size === 'small' ? 6 : 8 }]}>
-        <View style={[styles.photoContainer, { width: d.photoSize, height: d.photoSize, marginTop: d.pad, borderRadius: size === 'small' ? 4 : 6 }]}>
-          {player.photo ? (
-            <Image 
-              source={{ uri: player.photo }} 
-              style={[styles.photo, { width: d.photoSize, height: d.photoSize, borderRadius: size === 'small' ? 4 : 6 }]}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.photoPlaceholder, { width: d.photoSize, height: d.photoSize, backgroundColor: colors.bgDark, borderRadius: size === 'small' ? 4 : 6 }]}>
-              <User size={d.iconSize} color={colors.primary} strokeWidth={1.5} />
-            </View>
-          )}
+        <View style={[styles.photoContainer, { width: d.photoSize, height: d.photoSize, marginTop: d.pad, borderRadius: d.photoSize / 2 }]}>
+          <PlayerAvatar
+            name={player.name}
+            photoUrl={player.photo}
+            size={d.photoSize}
+            borderColor={colors.bgDark}
+            borderWidth={1}
+          />
           <View style={[styles.ratingBadge, { backgroundColor: colors.primary, borderRadius: size === 'small' ? 3 : 4, paddingHorizontal: size === 'small' ? 3 : 5, paddingVertical: size === 'small' ? 1 : 2 }]}>
             <Text style={[styles.ratingText, { fontSize: d.ratingSize }]}>{player.rating}</Text>
           </View>
@@ -129,11 +125,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     overflow: 'hidden',
     position: 'relative',
-  },
-  photo: {},
-  photoPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   ratingBadge: {
     position: 'absolute',

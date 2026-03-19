@@ -10,6 +10,7 @@ import { useRouter, RelativePathString } from 'expo-router';
 import { ChevronLeft, ChevronRight, Trophy, RefreshCw, Check, Info, X } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import PitchView from '@/components/PitchView';
+import PlayerAvatar from '@/components/PlayerAvatar';
 import Colors from '@/constants/colors';
 
 export default function TeamsScreen() {
@@ -139,7 +140,7 @@ export default function TeamsScreen() {
                 <View style={styles.playerList}>
                   {currentTeam.teamA.players.map(p => (
                     <View key={p.id} style={styles.playerRow}>
-                      <View style={[styles.positionDot, { backgroundColor: getPositionColor(p.position) }]} />
+                      <PlayerAvatar name={p.name} photoUrl={p.photo} size={22} />
                       <Text style={styles.playerName}>{p.name}</Text>
                       <Text style={styles.playerRating}>{p.rating}</Text>
                     </View>
@@ -162,7 +163,7 @@ export default function TeamsScreen() {
                 <View style={styles.playerList}>
                   {currentTeam.teamB.players.map(p => (
                     <View key={p.id} style={styles.playerRow}>
-                      <View style={[styles.positionDot, { backgroundColor: getPositionColor(p.position) }]} />
+                      <PlayerAvatar name={p.name} photoUrl={p.photo} size={22} />
                       <Text style={styles.playerName}>{p.name}</Text>
                       <Text style={styles.playerRating}>{p.rating}</Text>
                     </View>
@@ -188,15 +189,6 @@ export default function TeamsScreen() {
   );
 }
 
-function getPositionColor(position: string): string {
-  switch (position) {
-    case 'GK': return '#f59e0b';
-    case 'DEF': return '#3b82f6';
-    case 'MID': return '#10b981';
-    case 'FWD': return '#ef4444';
-    default: return Colors.textMuted;
-  }
-}
 
 const styles = StyleSheet.create({
   container: {

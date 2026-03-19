@@ -6,16 +6,18 @@ import {
   Modal, 
   TextInput, 
   Pressable, 
-  Image,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { X, Camera } from 'lucide-react-native';
+import { X, Camera, Trash2 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Player } from '@/types';
 import { useTNF } from '@/context/TNFContext';
+import { uploadPlayerPhoto } from '@/utils/photoUpload';
+import PlayerAvatar from './PlayerAvatar';
 import Colors from '@/constants/colors';
 
 interface AddPlayerModalProps {
@@ -33,6 +35,8 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
   const [position, setPosition] = useState(positions[0] ?? 'Player');
   const [rating, setRating] = useState('70');
   const [photo, setPhoto] = useState<string | undefined>();
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | undefined>();
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (editPlayer) {
@@ -40,11 +44,13 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
       setPosition(editPlayer.position);
       setRating(editPlayer.rating.toString());
       setPhoto(editPlayer.photo);
+      setLocalPhotoUri(undefined);
     } else {
       setName('');
       setPosition(positions.length > 0 ? positions[Math.floor(positions.length / 2)] : 'Player');
       setRating('70');
       setPhoto(undefined);
+      setLocalPhotoUri(undefined);
     }
   }, [editPlayer, visible, positions]);
 
@@ -57,11 +63,17 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
     });
 
     if (!result.canceled && result.assets[0]) {
+      setLocalPhotoUri(result.assets[0].uri);
       setPhoto(result.assets[0].uri);
     }
   };
 
-  const handleSave = () => {
+  const removePhoto = () => {
+    setPhoto(undefined);
+    setLocalPhotoUri(undefined);
+  };
+
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Please enter a player name');
       return;
@@ -73,14 +85,38 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
       return;
     }
 
+    let finalPhotoUrl = photo;
+
+    if (localPhotoUri) {
+      setIsUploading(true);
+      try {
+        const playerId = editPlayer?.id ?? `player-${Date.now()}`;
+        const uploadedUrl = await uploadPlayerPhoto(localPhotoUri, playerId);
+        if (uploadedUrl) {
+          finalPhotoUrl = uploadedUrl;
+          console.log('[AddPlayer] Photo uploaded to Supabase:', uploadedUrl);
+        } else {
+          finalPhotoUrl = localPhotoUri;
+          console.log('[AddPlayer] Upload failed, using local URI');
+        }
+      } catch (e) {
+        console.log('[AddPlayer] Photo upload error:', e);
+        finalPhotoUrl = localPhotoUri;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
     onSave({
       name: name.trim(),
       position: sportConfig.hasPositions ? position : 'Player',
       rating: ratingNum,
-      photo,
+      photo: finalPhotoUrl,
     });
     onClose();
   };
+
+  const displayName = name.trim() || 'Player';
 
   return (
     <Modal
@@ -102,16 +138,36 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <Pressable style={styles.photoSection} onPress={pickImage}>
-              {photo ? (
-                <Image source={{ uri: photo }} style={styles.photoPreview} />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Camera size={32} color={Colors.gold} />
-                  <Text style={styles.photoText}>Add Photo</Text>
+            <View style={styles.photoSection}>
+              <Pressable style={styles.photoTouchable} onPress={pickImage}>
+                {photo ? (
+                  <PlayerAvatar
+                    name={displayName}
+                    photoUrl={photo}
+                    size={120}
+                    borderColor={Colors.gold}
+                    borderWidth={3}
+                  />
+                ) : (
+                  <View style={styles.photoPlaceholder}>
+                    <Camera size={32} color={Colors.gold} />
+                    <Text style={styles.photoText}>Add Photo</Text>
+                  </View>
+                )}
+              </Pressable>
+              {photo && (
+                <View style={styles.photoActions}>
+                  <Pressable style={styles.photoActionBtn} onPress={pickImage}>
+                    <Camera size={16} color={Colors.gold} />
+                    <Text style={styles.photoActionText}>Change</Text>
+                  </Pressable>
+                  <Pressable style={styles.photoActionBtn} onPress={removePhoto}>
+                    <Trash2 size={16} color={Colors.danger} />
+                    <Text style={[styles.photoActionText, { color: Colors.danger }]}>Remove</Text>
+                  </Pressable>
                 </View>
               )}
-            </Pressable>
+            </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Name</Text>
@@ -163,10 +219,21 @@ export default function AddPlayerModal({ visible, onClose, onSave, editPlayer }:
             </View>
           </ScrollView>
 
-          <Pressable style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>
-              {editPlayer ? 'Update Player' : 'Add Player'}
-            </Text>
+          <Pressable
+            style={[styles.saveButton, isUploading && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <View style={styles.uploadingRow}>
+                <ActivityIndicator size="small" color={Colors.background} />
+                <Text style={styles.saveButtonText}>Uploading Photo...</Text>
+              </View>
+            ) : (
+              <Text style={styles.saveButtonText}>
+                {editPlayer ? 'Update Player' : 'Add Player'}
+              </Text>
+            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -210,12 +277,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  photoPreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
-    borderColor: Colors.gold,
+  photoTouchable: {
+    alignItems: 'center',
   },
   photoPlaceholder: {
     width: 120,
@@ -232,6 +295,27 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     fontSize: 12,
     marginTop: 8,
+  },
+  photoActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 12,
+  },
+  photoActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  photoActionText: {
+    color: Colors.gold,
+    fontSize: 12,
+    fontWeight: '600' as const,
   },
   inputGroup: {
     marginBottom: 20,
@@ -285,9 +369,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+  saveButtonDisabled: {
+    opacity: 0.7,
+  },
   saveButtonText: {
     color: Colors.background,
     fontSize: 16,
     fontWeight: '700' as const,
+  },
+  uploadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 });
