@@ -66,15 +66,17 @@ export default function PlayerCard({
       ]}
     >
       <View style={[styles.card, { backgroundColor: colors.bg, borderColor: colors.primary, borderWidth: d.borderW, borderRadius: size === 'small' ? 6 : 8 }]}>
-        <View style={[styles.photoContainer, { width: d.photoSize, height: d.photoSize, marginTop: d.pad, borderRadius: d.photoSize / 2 }]}>
-          <PlayerAvatar
-            name={player.name}
-            photoUrl={player.photo}
-            size={d.photoSize}
-            borderColor={colors.bgDark}
-            borderWidth={1}
-          />
-          <View style={[styles.ratingBadge, { backgroundColor: colors.primary, borderRadius: size === 'small' ? 3 : 4, paddingHorizontal: size === 'small' ? 3 : 5, paddingVertical: size === 'small' ? 1 : 2 }]}>
+        <View style={[styles.photoWrapper, { marginTop: d.pad, marginBottom: size === 'small' ? 4 : 6 }]}>
+          <View style={[styles.photoContainer, { width: d.photoSize, height: d.photoSize, borderRadius: d.photoSize / 2 }]}>
+            <PlayerAvatar
+              name={player.name}
+              photoUrl={player.photo}
+              size={d.photoSize}
+              borderColor={colors.bgDark}
+              borderWidth={1}
+            />
+          </View>
+          <View style={[styles.ratingBadge, { backgroundColor: colors.primary, borderRadius: size === 'small' ? 6 : 8, paddingHorizontal: size === 'small' ? 4 : 6, paddingVertical: size === 'small' ? 1 : 2, minWidth: size === 'small' ? 18 : 24 }]}>
             <Text style={[styles.ratingText, { fontSize: d.ratingSize }]}>{player.rating}</Text>
           </View>
         </View>
@@ -113,7 +115,7 @@ const styles = StyleSheet.create({
   container: {},
   card: {
     alignItems: 'center',
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   selected: {
     transform: [{ scale: 1.05 }],
@@ -121,15 +123,20 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.9,
   },
-  photoContainer: {
+  photoWrapper: {
     alignSelf: 'center',
-    overflow: 'hidden',
+    alignItems: 'center',
     position: 'relative',
+  },
+  photoContainer: {
+    overflow: 'hidden',
   },
   ratingBadge: {
     position: 'absolute',
-    bottom: -1,
-    right: -1,
+    bottom: -6,
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ratingText: {
     color: '#ffffff',
