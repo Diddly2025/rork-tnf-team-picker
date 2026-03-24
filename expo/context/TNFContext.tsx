@@ -642,6 +642,16 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       id: `match-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       createdAt: Date.now(),
     };
+    console.log('[SaveMatchResult] New result:', {
+      id: newResult.id,
+      date: newResult.date,
+      scoreA: newResult.scoreA,
+      scoreB: newResult.scoreB,
+      manOfMatchId: newResult.manOfMatchId ?? 'none',
+      playerIdsCount: newResult.playerIds.length,
+      teamACount: newResult.teamA.players.length,
+      teamBCount: newResult.teamB.players.length,
+    });
     saveMatchHistory([newResult, ...matchHistory]);
   }, [matchHistory, saveMatchHistory]);
 

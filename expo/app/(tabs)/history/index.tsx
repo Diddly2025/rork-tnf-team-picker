@@ -16,6 +16,7 @@ import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
 import { SPORT_CONFIGS, getSportLabel } from '@/constants/sports';
 import { MatchResult } from '@/types';
+import PlayerAvatar from '@/components/PlayerAvatar';
 import Colors from '@/constants/colors';
 
 export default function HistoryScreen() {
@@ -85,16 +86,25 @@ export default function HistoryScreen() {
     return 'Draw';
   };
 
-  const getMotmName = useCallback((manOfMatchId?: string) => {
-    if (!manOfMatchId) return null;
-    const player = players.find(p => p.id === manOfMatchId);
-    return player?.name ?? null;
+  const getMotmPlayer = useCallback((match: MatchResult) => {
+    if (!match.manOfMatchId) return null;
+    const allMatchPlayers = [...match.teamA.players, ...match.teamB.players];
+    const fromMatch = allMatchPlayers.find(p => p.id === match.manOfMatchId);
+    const fromRoster = players.find(p => p.id === match.manOfMatchId);
+    if (!fromMatch && !fromRoster) {
+      console.log('[History] POTM player not found:', match.manOfMatchId);
+      return null;
+    }
+    return {
+      name: fromRoster?.name ?? fromMatch?.name ?? 'Unknown',
+      photo: fromRoster?.photo,
+    };
   }, [players]);
 
   const activeGroup = useMemo(() => groups.find(g => g.id === activeGroupId) ?? null, [groups, activeGroupId]);
 
   const renderMatch = useCallback(({ item }: { item: MatchResult }) => {
-    const motmName = getMotmName(item.manOfMatchId);
+    const motmPlayer = getMotmPlayer(item);
     const isExpanded = expandedIds.includes(item.id);
     const teamAAll = item.teamA.players;
     const teamBAll = item.teamB.players;
@@ -173,16 +183,23 @@ export default function HistoryScreen() {
           </Pressable>
         )}
 
-        {motmName && (
+        {motmPlayer && (
           <View style={styles.motmRow}>
+            <PlayerAvatar
+              name={motmPlayer.name}
+              photoUrl={motmPlayer.photo}
+              size={22}
+              borderColor={Colors.gold}
+              borderWidth={1.5}
+            />
             <Star size={12} color={Colors.gold} fill={Colors.gold} />
-            <Text style={styles.motmText}>{motmName}</Text>
+            <Text style={styles.motmText}>{motmPlayer.name}</Text>
             <Text style={styles.motmLabel}>POTM</Text>
           </View>
         )}
       </View>
     );
-  }, [handleDelete, handleEdit, getMotmName, expandedIds, toggleExpanded]);
+  }, [handleDelete, handleEdit, getMotmPlayer, expandedIds, toggleExpanded]);
 
   const renderEmpty = () => (
     <View style={styles.emptyState}>

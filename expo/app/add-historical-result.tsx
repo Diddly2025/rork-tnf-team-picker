@@ -84,15 +84,29 @@ export default function AddHistoricalResultScreen() {
       ? Math.round((totalB / teamBPlayers.length) * 10) / 10
       : 0;
 
+    const allPlayerIds = [...teamAIds, ...teamBIds];
+    const potmId = manOfMatchId ?? undefined;
+
+    console.log('[AddPastResult] Saving match:', {
+      date: dateText.trim(),
+      teamACount: teamAPlayers.length,
+      teamBCount: teamBPlayers.length,
+      scoreA,
+      scoreB,
+      playerIdsCount: allPlayerIds.length,
+      manOfMatchId: potmId ?? 'none',
+      potmName: potmId ? players.find(p => p.id === potmId)?.name : 'none',
+    });
+
     saveMatchResult({
       date: dateText.trim(),
       teamA: { id: `hist-a-${Date.now()}`, players: teamAPlayers, totalRating: totalA, averageRating: avgA },
       teamB: { id: `hist-b-${Date.now()}`, players: teamBPlayers, totalRating: totalB, averageRating: avgB },
       scoreA,
       scoreB,
-      playerIds: [...teamAIds, ...teamBIds],
+      playerIds: allPlayerIds,
       isManualTeams: true,
-      manOfMatchId: manOfMatchId ?? undefined,
+      manOfMatchId: potmId,
     });
 
     Alert.alert('Result Added', 'Historical result has been saved', [

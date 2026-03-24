@@ -69,6 +69,45 @@ export default function EditResultScreen() {
   const steps: Step[] = ['date', 'teamA', 'teamB', 'score', 'motm'];
   const currentStepIndex = steps.indexOf(step);
 
+  const handleSave = useCallback(() => {
+    if (!match) return;
+
+    const teamAPlayers = players.filter(p => teamAIds.includes(p.id));
+    const teamBPlayers = players.filter(p => teamBIds.includes(p.id));
+
+    const totalA = teamAPlayers.reduce((s, p) => s + p.rating, 0);
+    const avgA = teamAPlayers.length > 0 ? Math.round((totalA / teamAPlayers.length) * 10) / 10 : 0;
+    const totalB = teamBPlayers.reduce((s, p) => s + p.rating, 0);
+    const avgB = teamBPlayers.length > 0 ? Math.round((totalB / teamBPlayers.length) * 10) / 10 : 0;
+
+    const allPlayerIds = [...teamAIds, ...teamBIds];
+    const potmId = manOfMatchId ?? undefined;
+
+    console.log('[EditResult] Saving match update:', {
+      id: match.id,
+      date: dateText.trim(),
+      scoreA,
+      scoreB,
+      manOfMatchId: potmId ?? 'none',
+      potmName: potmId ? players.find(p => p.id === potmId)?.name : 'none',
+      playerIdsCount: allPlayerIds.length,
+    });
+
+    updateMatchResult(match.id, {
+      date: dateText.trim(),
+      teamA: { id: match.teamA.id, players: teamAPlayers, totalRating: totalA, averageRating: avgA },
+      teamB: { id: match.teamB.id, players: teamBPlayers, totalRating: totalB, averageRating: avgB },
+      scoreA,
+      scoreB,
+      playerIds: allPlayerIds,
+      manOfMatchId: potmId,
+    });
+
+    Alert.alert('Saved', 'Match result updated', [
+      { text: 'OK', onPress: () => router.replace('/(tabs)/history' as RelativePathString) },
+    ]);
+  }, [match, players, teamAIds, teamBIds, dateText, scoreA, scoreB, manOfMatchId, updateMatchResult, router]);
+
   const handleNext = useCallback(() => {
     if (step === 'date') {
       if (!dateText.trim()) { Alert.alert('Date Required', 'Please enter a date'); return; }
@@ -84,33 +123,7 @@ export default function EditResultScreen() {
     } else if (step === 'motm') {
       handleSave();
     }
-  }, [step, dateText, teamAIds, teamBIds]);
-
-  const handleSave = useCallback(() => {
-    if (!match) return;
-
-    const teamAPlayers = players.filter(p => teamAIds.includes(p.id));
-    const teamBPlayers = players.filter(p => teamBIds.includes(p.id));
-
-    const totalA = teamAPlayers.reduce((s, p) => s + p.rating, 0);
-    const avgA = teamAPlayers.length > 0 ? Math.round((totalA / teamAPlayers.length) * 10) / 10 : 0;
-    const totalB = teamBPlayers.reduce((s, p) => s + p.rating, 0);
-    const avgB = teamBPlayers.length > 0 ? Math.round((totalB / teamBPlayers.length) * 10) / 10 : 0;
-
-    updateMatchResult(match.id, {
-      date: dateText.trim(),
-      teamA: { id: match.teamA.id, players: teamAPlayers, totalRating: totalA, averageRating: avgA },
-      teamB: { id: match.teamB.id, players: teamBPlayers, totalRating: totalB, averageRating: avgB },
-      scoreA,
-      scoreB,
-      playerIds: [...teamAIds, ...teamBIds],
-      manOfMatchId: manOfMatchId ?? undefined,
-    });
-
-    Alert.alert('Saved', 'Match result updated', [
-      { text: 'OK', onPress: () => router.replace('/(tabs)/history' as RelativePathString) },
-    ]);
-  }, [match, players, teamAIds, teamBIds, dateText, scoreA, scoreB, manOfMatchId, updateMatchResult, router]);
+  }, [step, dateText, teamAIds, teamBIds, handleSave]);
 
   const stepLabels: Record<Step, string> = {
     date: 'Match Date', teamA: 'Team A Players', teamB: 'Team B Players',
