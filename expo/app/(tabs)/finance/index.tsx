@@ -33,6 +33,10 @@ import {
   X,
   Tag,
   Banknote,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Pencil,
+  Wallet,
 } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
@@ -43,6 +47,7 @@ import { Expense } from '@/types';
 type ActiveTab = 'kitty' | 'players' | 'expenses' | 'cloud';
 
 type ExpenseCategory = Expense['category'];
+type AdjustmentType = 'addition' | 'deduction';
 
 const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; icon: string }[] = [
   { value: 'equipment', label: 'Equipment', icon: 'bibs, balls, cones' },
@@ -89,12 +94,37 @@ export default function FinanceScreen() {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCategory, setExpenseCategory] = useState<ExpenseCategory>('equipment');
 
+  const [showAddAdjustment, setShowAddAdjustment] = useState(false);
+  const [adjDesc, setAdjDesc] = useState('');
+  const [adjAmount, setAdjAmount] = useState('');
+  const [adjType, setAdjType] = useState<AdjustmentType>('addition');
+  const [adjDate, setAdjDate] = useState('');
+
+  const [showOpeningBalance, setShowOpeningBalance] = useState(false);
+  const [openingBalanceAmount, setOpeningBalanceAmount] = useState('');
+  const [openingBalanceNote, setOpeningBalanceNote] = useState('');
 
   const totalCollected = getTotalCollected();
   const kittyBalance = getKittyBalance();
   const totalExpenses = getTotalExpenses();
   const totalOutstanding = getTotalOutstanding();
   const costPerSession = activeGroup?.costPerSession ?? subsSettings.costPerGame;
+
+  const existingOpeningBalance = useMemo(() => {
+    return expenses.find(e => e.adjustmentType === 'opening_balance') ?? null;
+  }, [expenses]);
+
+  const totalAdjustmentAdditions = useMemo(() => {
+    return expenses
+      .filter(e => e.adjustmentType === 'addition' || e.adjustmentType === 'opening_balance')
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [expenses]);
+
+  const totalAdjustmentDeductions = useMemo(() => {
+    return expenses
+      .filter(e => e.adjustmentType === 'deduction')
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [expenses]);
 
   const handleSwitchGroup = useCallback((groupId: string) => {
     setActiveGroup(groupId);
@@ -148,10 +178,80 @@ export default function FinanceScreen() {
     console.log('[Finance] Expense added:', expenseDesc.trim(), amount);
   }, [expenseDesc, expenseAmount, expenseCategory, addExpense]);
 
-  const handleDeleteExpense = useCallback((expense: Expense) => {
+  const handleAddAdjustment = useCallback(() => {
+    const amount = parseFloat(adjAmount);
+    if (!adjDesc.trim()) {
+      Alert.alert('Missing Description', 'Please add a note for this adjustment.');
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount.');
+      return;
+    }
+    const date = adjDate.trim() || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    addExpense({
+      description: adjDesc.trim(),
+      amount,
+      category: 'other',
+      date,
+      adjustmentType: adjType,
+    });
+    setAdjDesc('');
+    setAdjAmount('');
+    setAdjType('addition');
+    setAdjDate('');
+    setShowAddAdjustment(false);
+    console.log('[Finance] Adjustment added:', adjDesc.trim(), amount, adjType);
+  }, [adjDesc, adjAmount, adjType, adjDate, addExpense]);
+
+  const handleSaveOpeningBalance = useCallback(() => {
+    const amount = parseFloat(openingBalanceAmount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid opening balance amount.');
+      return;
+    }
+    if (existingOpeningBalance) {
+      deleteExpense(existingOpeningBalance.id);
+    }
+    const note = openingBalanceNote.trim() || 'Opening Balance';
+    addExpense({
+      description: note,
+      amount,
+      category: 'other',
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      adjustmentType: 'opening_balance',
+    });
+    setOpeningBalanceAmount('');
+    setOpeningBalanceNote('');
+    setShowOpeningBalance(false);
+    console.log('[Finance] Opening balance set:', amount);
+  }, [openingBalanceAmount, openingBalanceNote, existingOpeningBalance, addExpense, deleteExpense]);
+
+  const handleRemoveOpeningBalance = useCallback(() => {
+    if (!existingOpeningBalance) return;
     Alert.alert(
-      'Delete Expense',
-      `Remove "${expense.description}" (£${expense.amount.toFixed(2)}) from expenses?`,
+      'Remove Opening Balance',
+      `Remove the opening balance of £${existingOpeningBalance.amount.toFixed(2)}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => deleteExpense(existingOpeningBalance.id) },
+      ]
+    );
+  }, [existingOpeningBalance, deleteExpense]);
+
+  const handleEditOpeningBalance = useCallback(() => {
+    if (existingOpeningBalance) {
+      setOpeningBalanceAmount(existingOpeningBalance.amount.toString());
+      setOpeningBalanceNote(existingOpeningBalance.description === 'Opening Balance' ? '' : existingOpeningBalance.description);
+    }
+    setShowOpeningBalance(true);
+  }, [existingOpeningBalance]);
+
+  const handleDeleteExpense = useCallback((expense: Expense) => {
+    const label = expense.adjustmentType ? 'Adjustment' : 'Expense';
+    Alert.alert(
+      `Delete ${label}`,
+      `Remove "${expense.description}" (£${expense.amount.toFixed(2)})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => deleteExpense(expense.id) },
@@ -160,16 +260,103 @@ export default function FinanceScreen() {
   }, [deleteExpense]);
 
   const sortedExpenses = useMemo(() => {
-    return [...expenses].sort((a, b) => b.createdAt - a.createdAt);
+    return [...expenses]
+      .filter(e => e.adjustmentType !== 'opening_balance')
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [expenses]);
+
+  const regularExpenses = useMemo(() => {
+    return expenses.filter(e => !e.adjustmentType);
   }, [expenses]);
 
   const expensesByCategory = useMemo(() => {
     const grouped: Record<string, number> = {};
-    expenses.forEach(e => {
+    regularExpenses.forEach(e => {
       grouped[e.category] = (grouped[e.category] ?? 0) + e.amount;
     });
     return grouped;
-  }, [expenses]);
+  }, [regularExpenses]);
+
+  const renderExpenseItem = useCallback(({ item }: { item: Expense }) => {
+    const isAdjustment = !!item.adjustmentType;
+    const isAddition = item.adjustmentType === 'addition';
+
+    if (isAdjustment) {
+      const stripColor = isAddition ? '#059669' : '#dc3545';
+      const amountColor = isAddition ? Colors.success : Colors.danger;
+      const amountPrefix = isAddition ? '+' : '-';
+      const bgTint = isAddition ? 'rgba(5,150,105,0.04)' : 'rgba(220,53,69,0.04)';
+
+      return (
+        <View style={[styles.expenseCard, { backgroundColor: bgTint }]}>
+          <View style={[styles.expenseCatStrip, { backgroundColor: stripColor }]} />
+          <View style={styles.expenseCardBody}>
+            <View style={styles.expenseCardTop}>
+              <View style={styles.expenseCardInfo}>
+                <View style={styles.adjTitleRow}>
+                  <Text style={styles.expenseCardDesc}>{item.description}</Text>
+                </View>
+                <View style={styles.expenseCardMeta}>
+                  <View style={[styles.adjBadge, { backgroundColor: isAddition ? 'rgba(5,150,105,0.12)' : 'rgba(220,53,69,0.12)' }]}>
+                    <Text style={[styles.adjBadgeText, { color: amountColor }]}>
+                      {isAddition ? 'ADDITION' : 'DEDUCTION'}
+                    </Text>
+                  </View>
+                  <View style={styles.matchStatDivider} />
+                  <Calendar size={11} color={Colors.textMuted} />
+                  <Text style={styles.expenseCardDate}>{item.date}</Text>
+                </View>
+              </View>
+              <View style={styles.expenseCardRight}>
+                <Text style={[styles.expenseCardAmount, { color: amountColor }]}>
+                  {amountPrefix}£{item.amount.toFixed(2)}
+                </Text>
+                <Pressable
+                  onPress={() => handleDeleteExpense(item)}
+                  hitSlop={10}
+                  style={styles.expenseDeleteBtn}
+                >
+                  <Trash2 size={15} color={Colors.danger} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.expenseCard}>
+        <View style={[styles.expenseCatStrip, { backgroundColor: CATEGORY_COLORS[item.category] }]} />
+        <View style={styles.expenseCardBody}>
+          <View style={styles.expenseCardTop}>
+            <View style={styles.expenseCardInfo}>
+              <Text style={styles.expenseCardDesc}>{item.description}</Text>
+              <View style={styles.expenseCardMeta}>
+                <Tag size={11} color={Colors.textMuted} />
+                <Text style={styles.expenseCardCat}>
+                  {EXPENSE_CATEGORIES.find(c => c.value === item.category)?.label ?? item.category}
+                </Text>
+                <View style={styles.matchStatDivider} />
+                <Calendar size={11} color={Colors.textMuted} />
+                <Text style={styles.expenseCardDate}>{item.date}</Text>
+              </View>
+            </View>
+            <View style={styles.expenseCardRight}>
+              <Text style={styles.expenseCardAmount}>-£{item.amount.toFixed(2)}</Text>
+              <Pressable
+                onPress={() => handleDeleteExpense(item)}
+                hitSlop={10}
+                style={styles.expenseDeleteBtn}
+              >
+                <Trash2 size={15} color={Colors.danger} />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }, [handleDeleteExpense]);
 
   const renderKittyTab = () => (
     <FlatList
@@ -383,7 +570,55 @@ export default function FinanceScreen() {
       contentContainerStyle={styles.listContent}
       ListHeaderComponent={
         <View>
-          {expenses.length > 0 && (
+          {existingOpeningBalance ? (
+            <View style={styles.openingBalanceBanner}>
+              <View style={styles.openingBalanceLeft}>
+                <Wallet size={18} color="#059669" />
+                <View style={styles.openingBalanceInfo}>
+                  <Text style={styles.openingBalanceLabel}>Opening Balance</Text>
+                  <Text style={styles.openingBalanceNote}>{existingOpeningBalance.description}</Text>
+                </View>
+              </View>
+              <View style={styles.openingBalanceRight}>
+                <Text style={styles.openingBalanceAmount}>+£{existingOpeningBalance.amount.toFixed(2)}</Text>
+                <View style={styles.openingBalanceActions}>
+                  <Pressable onPress={handleEditOpeningBalance} hitSlop={8} style={styles.openingBalanceActionBtn}>
+                    <Pencil size={13} color={Colors.textSecondary} />
+                  </Pressable>
+                  <Pressable onPress={handleRemoveOpeningBalance} hitSlop={8} style={styles.openingBalanceActionBtn}>
+                    <Trash2 size={13} color={Colors.danger} />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <Pressable style={styles.setOpeningBalanceBtn} onPress={() => setShowOpeningBalance(true)}>
+              <Wallet size={16} color="#059669" />
+              <Text style={styles.setOpeningBalanceBtnText}>Set Opening Balance</Text>
+            </Pressable>
+          )}
+
+          {(totalAdjustmentAdditions > 0 || totalAdjustmentDeductions > 0) && (
+            <View style={styles.adjustmentSummaryCard}>
+              <Text style={styles.expenseSummaryTitle}>Adjustments Summary</Text>
+              {totalAdjustmentAdditions > 0 && (
+                <View style={styles.adjSummaryRow}>
+                  <ArrowUpCircle size={14} color={Colors.success} />
+                  <Text style={styles.adjSummaryLabel}>Total Additions</Text>
+                  <Text style={[styles.adjSummaryValue, { color: Colors.success }]}>+£{totalAdjustmentAdditions.toFixed(2)}</Text>
+                </View>
+              )}
+              {totalAdjustmentDeductions > 0 && (
+                <View style={styles.adjSummaryRow}>
+                  <ArrowDownCircle size={14} color={Colors.danger} />
+                  <Text style={styles.adjSummaryLabel}>Total Deductions</Text>
+                  <Text style={[styles.adjSummaryValue, { color: Colors.danger }]}>-£{totalAdjustmentDeductions.toFixed(2)}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {regularExpenses.length > 0 && (
             <View style={styles.expenseSummaryCard}>
               <Text style={styles.expenseSummaryTitle}>Breakdown by Category</Text>
               {EXPENSE_CATEGORIES.map(cat => {
@@ -408,65 +643,58 @@ export default function FinanceScreen() {
               })}
             </View>
           )}
+
           <View style={styles.expensesHeaderRow}>
-            <View>
-              <Text style={styles.sectionTitle}>All Expenses</Text>
-              <Text style={styles.sectionSubtitle}>{expenses.length} item{expenses.length !== 1 ? 's' : ''} totalling £{totalExpenses.toFixed(2)}</Text>
+            <View style={styles.expensesHeaderLeft}>
+              <Text style={styles.sectionTitle}>All Expenses & Adjustments</Text>
+              <Text style={styles.sectionSubtitle}>
+                {sortedExpenses.length} item{sortedExpenses.length !== 1 ? 's' : ''}
+              </Text>
             </View>
-            <Pressable
-              style={styles.addExpenseFab}
-              onPress={() => setShowAddExpense(true)}
-            >
-              <Plus size={18} color="#fff" />
-              <Text style={styles.addExpenseFabText}>Add</Text>
-            </Pressable>
+            <View style={styles.expensesHeaderButtons}>
+              <Pressable
+                style={styles.addAdjustmentFab}
+                onPress={() => setShowAddAdjustment(true)}
+                testID="add-adjustment-btn"
+              >
+                <ArrowUpCircle size={15} color="#fff" />
+                <Text style={styles.addAdjustmentFabText}>Adjust</Text>
+              </Pressable>
+              <Pressable
+                style={styles.addExpenseFab}
+                onPress={() => setShowAddExpense(true)}
+                testID="add-expense-btn"
+              >
+                <Plus size={15} color="#fff" />
+                <Text style={styles.addExpenseFabText}>Expense</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       }
       ListEmptyComponent={
         <View style={styles.empty}>
           <ShoppingBag size={48} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>No expenses recorded</Text>
-          <Pressable
-            style={styles.emptyAddBtn}
-            onPress={() => setShowAddExpense(true)}
-          >
-            <Plus size={16} color={Colors.gold} />
-            <Text style={styles.emptyAddBtnText}>Add your first expense</Text>
-          </Pressable>
-        </View>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.expenseCard}>
-          <View style={[styles.expenseCatStrip, { backgroundColor: CATEGORY_COLORS[item.category] }]} />
-          <View style={styles.expenseCardBody}>
-            <View style={styles.expenseCardTop}>
-              <View style={styles.expenseCardInfo}>
-                <Text style={styles.expenseCardDesc}>{item.description}</Text>
-                <View style={styles.expenseCardMeta}>
-                  <Tag size={11} color={Colors.textMuted} />
-                  <Text style={styles.expenseCardCat}>
-                    {EXPENSE_CATEGORIES.find(c => c.value === item.category)?.label ?? item.category}
-                  </Text>
-                  <View style={styles.matchStatDivider} />
-                  <Calendar size={11} color={Colors.textMuted} />
-                  <Text style={styles.expenseCardDate}>{item.date}</Text>
-                </View>
-              </View>
-              <View style={styles.expenseCardRight}>
-                <Text style={styles.expenseCardAmount}>-£{item.amount.toFixed(2)}</Text>
-                <Pressable
-                  onPress={() => handleDeleteExpense(item)}
-                  hitSlop={10}
-                  style={styles.expenseDeleteBtn}
-                >
-                  <Trash2 size={15} color={Colors.danger} />
-                </Pressable>
-              </View>
-            </View>
+          <Text style={styles.emptyText}>No expenses or adjustments recorded</Text>
+          <View style={styles.emptyButtonsRow}>
+            <Pressable
+              style={styles.emptyAddBtn}
+              onPress={() => setShowAddExpense(true)}
+            >
+              <Plus size={16} color={Colors.gold} />
+              <Text style={styles.emptyAddBtnText}>Add expense</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.emptyAddBtn, { borderColor: '#0d9488' }]}
+              onPress={() => setShowAddAdjustment(true)}
+            >
+              <ArrowUpCircle size={16} color="#0d9488" />
+              <Text style={[styles.emptyAddBtnText, { color: '#0d9488' }]}>Add adjustment</Text>
+            </Pressable>
           </View>
         </View>
-      )}
+      }
+      renderItem={renderExpenseItem}
     />
   );
 
@@ -712,6 +940,159 @@ export default function FinanceScreen() {
 
             <Pressable style={styles.addExpenseButton} onPress={handleAddExpense}>
               <Text style={styles.addExpenseButtonText}>Add Expense</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showAddAdjustment}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAddAdjustment(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowAddAdjustment(false)} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Adjustment</Text>
+              <Pressable onPress={() => setShowAddAdjustment(false)} hitSlop={12}>
+                <X size={22} color={Colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.fieldLabel}>Type</Text>
+            <View style={styles.adjTypeToggle}>
+              <Pressable
+                style={[
+                  styles.adjTypeBtn,
+                  adjType === 'addition' && styles.adjTypeBtnAddActive,
+                ]}
+                onPress={() => setAdjType('addition')}
+              >
+                <ArrowUpCircle size={16} color={adjType === 'addition' ? '#fff' : Colors.success} />
+                <Text style={[
+                  styles.adjTypeBtnText,
+                  adjType === 'addition' && styles.adjTypeBtnTextActive,
+                ]}>
+                  Add to Kitty
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.adjTypeBtn,
+                  adjType === 'deduction' && styles.adjTypeBtnDeductActive,
+                ]}
+                onPress={() => setAdjType('deduction')}
+              >
+                <ArrowDownCircle size={16} color={adjType === 'deduction' ? '#fff' : Colors.danger} />
+                <Text style={[
+                  styles.adjTypeBtnText,
+                  adjType === 'deduction' && styles.adjTypeBtnTextActive,
+                ]}>
+                  Deduct from Kitty
+                </Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.fieldLabel}>Description / Note</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. Rollover from 2024, Pitch refund"
+              placeholderTextColor={Colors.textMuted}
+              value={adjDesc}
+              onChangeText={setAdjDesc}
+            />
+
+            <Text style={styles.fieldLabel}>Amount (£)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="0.00"
+              placeholderTextColor={Colors.textMuted}
+              value={adjAmount}
+              onChangeText={setAdjAmount}
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.fieldLabel}>Date (optional — leave blank for today)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. 15 Jan 2024"
+              placeholderTextColor={Colors.textMuted}
+              value={adjDate}
+              onChangeText={setAdjDate}
+            />
+
+            <Pressable
+              style={[
+                styles.addExpenseButton,
+                { backgroundColor: adjType === 'addition' ? '#059669' : '#dc3545' },
+              ]}
+              onPress={handleAddAdjustment}
+            >
+              <Text style={styles.addExpenseButtonText}>
+                {adjType === 'addition' ? 'Add to Kitty' : 'Deduct from Kitty'}
+              </Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showOpeningBalance}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowOpeningBalance(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowOpeningBalance(false)} />
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {existingOpeningBalance ? 'Edit Opening Balance' : 'Set Opening Balance'}
+              </Text>
+              <Pressable onPress={() => setShowOpeningBalance(false)} hitSlop={12}>
+                <X size={22} color={Colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.openingBalanceHint}>
+              Enter the rollover amount from before you started using PlayDay. This will be added to your kitty balance.
+            </Text>
+
+            <Text style={styles.fieldLabel}>Amount (£)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="0.00"
+              placeholderTextColor={Colors.textMuted}
+              value={openingBalanceAmount}
+              onChangeText={setOpeningBalanceAmount}
+              keyboardType="decimal-pad"
+              autoFocus
+            />
+
+            <Text style={styles.fieldLabel}>Note (optional)</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="e.g. Rollover from previous season"
+              placeholderTextColor={Colors.textMuted}
+              value={openingBalanceNote}
+              onChangeText={setOpeningBalanceNote}
+            />
+
+            <Pressable
+              style={[styles.addExpenseButton, { backgroundColor: '#059669' }]}
+              onPress={handleSaveOpeningBalance}
+            >
+              <Text style={styles.addExpenseButtonText}>
+                {existingOpeningBalance ? 'Update Opening Balance' : 'Set Opening Balance'}
+              </Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -983,6 +1364,11 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 15,
   },
+  emptyButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
   playerCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1222,17 +1608,39 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 4,
   },
+  expensesHeaderLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
+  expensesHeaderButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   addExpenseFab: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.gold,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    gap: 5,
+    gap: 4,
   },
   addExpenseFabText: {
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#fff',
+  },
+  addAdjustmentFab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0d9488',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  addAdjustmentFabText: {
+    fontSize: 12,
     fontWeight: '700' as const,
     color: '#fff',
   },
@@ -1240,15 +1648,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.gold,
   },
   emptyAddBtnText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600' as const,
     color: Colors.gold,
   },
@@ -1307,6 +1714,148 @@ const styles = StyleSheet.create({
   },
   expenseDeleteBtn: {
     padding: 4,
+  },
+  adjTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  adjBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  adjBadgeText: {
+    fontSize: 9,
+    fontWeight: '800' as const,
+    letterSpacing: 0.5,
+  },
+  adjTypeToggle: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  adjTypeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.background,
+  },
+  adjTypeBtnAddActive: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  adjTypeBtnDeductActive: {
+    backgroundColor: '#dc3545',
+    borderColor: '#dc3545',
+  },
+  adjTypeBtnText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  adjTypeBtnTextActive: {
+    color: '#fff',
+  },
+  openingBalanceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(5,150,105,0.06)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(5,150,105,0.2)',
+  },
+  openingBalanceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  openingBalanceInfo: {
+    flex: 1,
+  },
+  openingBalanceLabel: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#059669',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  openingBalanceNote: {
+    fontSize: 13,
+    color: Colors.text,
+    marginTop: 2,
+  },
+  openingBalanceRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  openingBalanceAmount: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#059669',
+  },
+  openingBalanceActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  openingBalanceActionBtn: {
+    padding: 4,
+  },
+  setOpeningBalanceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(5,150,105,0.06)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(5,150,105,0.2)',
+    borderStyle: 'dashed',
+  },
+  setOpeningBalanceBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#059669',
+  },
+  openingBalanceHint: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+    marginBottom: 8,
+  },
+  adjustmentSummaryCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    gap: 10,
+  },
+  adjSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  adjSummaryLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  adjSummaryValue: {
+    fontSize: 14,
+    fontWeight: '700' as const,
   },
   modalOverlay: {
     flex: 1,

@@ -89,4 +89,5 @@ export interface Expense {
   category: 'equipment' | 'venue' | 'social' | 'other';
   date: string;
   createdAt: number;
+  adjustmentType?: 'addition' | 'deduction' | 'opening_balance';
 }

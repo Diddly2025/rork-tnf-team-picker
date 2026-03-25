@@ -476,7 +476,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   }, [subsPayments]);
 
   const getTotalExpenses = useCallback(() => {
-    return expenses.reduce((sum, e) => sum + e.amount, 0);
+    return expenses.filter(e => !e.adjustmentType).reduce((sum, e) => sum + e.amount, 0);
   }, [expenses]);
 
   const getKittyBalance = useCallback(() => {
@@ -484,8 +484,14 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       .filter(p => p.type === 'credit')
       .reduce((sum, p) => sum + p.amount, 0);
     const totalGameCosts = matchHistory.length * subsSettings.gameCost;
-    const totalExp = expenses.reduce((sum, e) => sum + e.amount, 0);
-    return totalCredits - totalGameCosts - totalExp;
+    const totalRegularExp = expenses.filter(e => !e.adjustmentType).reduce((sum, e) => sum + e.amount, 0);
+    const totalAdditions = expenses
+      .filter(e => e.adjustmentType === 'addition' || e.adjustmentType === 'opening_balance')
+      .reduce((sum, e) => sum + e.amount, 0);
+    const totalDeductions = expenses
+      .filter(e => e.adjustmentType === 'deduction')
+      .reduce((sum, e) => sum + e.amount, 0);
+    return totalCredits - totalGameCosts - totalRegularExp + totalAdditions - totalDeductions;
   }, [subsPayments, matchHistory, subsSettings.gameCost, expenses]);
 
   const getTotalOutstanding = useCallback(() => {
