@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { Player, Restriction, MatchResult, SubsPayment, SubsSettings } from '@/types';
+import { Player, Restriction, MatchResult, SubsPayment, SubsSettings, Expense } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CLOUD_SYNC_KEY = 'tnf_cloud_sync_enabled';
@@ -233,6 +233,52 @@ export async function fetchSubsPaymentsFromSupabase(): Promise<SubsPayment[] | n
     }));
   } catch (e) {
     console.log('[Supabase Fetch] Subs payments fetch failed:', e);
+    return null;
+  }
+}
+
+export async function syncExpensesToSupabase(expenses: Expense[]): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  try {
+    await supabase.from('expenses').delete().neq('id', '');
+    if (expenses.length === 0) return;
+    const rows = expenses.map(e => ({
+      id: e.id,
+      description: e.description,
+      amount: e.amount,
+      category: e.category,
+      date: e.date,
+      created_at: e.createdAt,
+      adjustment_type: e.adjustmentType ?? null,
+    }));
+    const { error } = await supabase.from('expenses').upsert(rows);
+    if (error) console.log('[Supabase Sync] Error syncing expenses:', error.message);
+    else console.log('[Supabase Sync] Expenses synced:', expenses.length);
+  } catch (e) {
+    console.log('[Supabase Sync] Expenses sync failed:', e);
+  }
+}
+
+export async function fetchExpensesFromSupabase(): Promise<Expense[] | null> {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+    if (error) {
+      console.log('[Supabase Fetch] Error fetching expenses:', error.message);
+      return null;
+    }
+    if (!data || data.length === 0) return null;
+    return data.map((row: Record<string, unknown>) => ({
+      id: row.id as string,
+      description: row.description as string,
+      amount: Number(row.amount),
+      category: row.category as Expense['category'],
+      date: row.date as string,
+      createdAt: Number(row.created_at),
+      adjustmentType: (row.adjustment_type as Expense['adjustmentType']) ?? undefined,
+    }));
+  } catch (e) {
+    console.log('[Supabase Fetch] Expenses fetch failed:', e);
     return null;
   }
 }

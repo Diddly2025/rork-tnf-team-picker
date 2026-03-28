@@ -12,11 +12,13 @@ import {
   syncMatchResultsToSupabase,
   syncSubsPaymentsToSupabase,
   syncSubsSettingsToSupabase,
+  syncExpensesToSupabase,
   fetchPlayersFromSupabase,
   fetchRestrictionsFromSupabase,
   fetchMatchResultsFromSupabase,
   fetchSubsPaymentsFromSupabase,
   fetchSubsSettingsFromSupabase,
+  fetchExpensesFromSupabase,
   getCloudSyncEnabled,
   setCloudSyncEnabled as saveCloudSyncPref,
 } from '@/utils/supabaseSync';
@@ -175,7 +177,22 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     queryFn: async () => {
       if (!gid) return [];
       const stored = await AsyncStorage.getItem(sk(gid, 'expenses'));
-      return stored ? (JSON.parse(stored) as Expense[]) : [];
+      const localData = stored ? (JSON.parse(stored) as Expense[]) : [];
+
+      if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
+        try {
+          console.log('[Hybrid] Local expenses empty, trying Supabase...');
+          const remote = await fetchExpensesFromSupabase();
+          if (remote && remote.length > 0) {
+            console.log('[Hybrid] Restored expenses from Supabase:', remote.length);
+            await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(remote));
+            return remote;
+          }
+        } catch (e) {
+          console.log('[Hybrid] Supabase fetch failed, using local:', e);
+        }
+      }
+      return localData;
     },
     enabled: hasGroup,
   });
@@ -285,6 +302,9 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     mutationFn: async (expenses: Expense[]) => {
       if (!gid) return expenses;
       await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(expenses));
+      if (shouldSync()) {
+        void syncExpensesToSupabase(expenses).catch(e => console.log('[Sync] Expenses bg sync error:', e));
+      }
       return expenses;
     },
     onMutate: async (expenses) => {
@@ -330,6 +350,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         syncMatchResultsToSupabase(matchHistory),
         syncSubsPaymentsToSupabase(subsPayments),
         syncSubsSettingsToSupabase(subsSettings),
+        syncExpensesToSupabase(expenses),
       ]);
       setSyncStatus('synced');
       console.log('[Sync] Full sync completed');
@@ -337,18 +358,19 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       setSyncStatus('error');
       console.log('[Sync] Full sync failed:', e);
     }
-  }, [players, restrictions, matchHistory, subsPayments, subsSettings]);
+  }, [players, restrictions, matchHistory, subsPayments, subsSettings, expenses]);
 
   const forceCloudRestore = useCallback(async () => {
     if (!isSupabaseConfigured() || !cloudSyncRef.current || !gid) return;
     setSyncStatus('syncing');
     try {
-      const [remotePlayers, remoteRestrictions, remoteMatches, remotePayments, remoteSettings] = await Promise.all([
+      const [remotePlayers, remoteRestrictions, remoteMatches, remotePayments, remoteSettings, remoteExpenses] = await Promise.all([
         fetchPlayersFromSupabase(),
         fetchRestrictionsFromSupabase(),
         fetchMatchResultsFromSupabase(),
         fetchSubsPaymentsFromSupabase(),
         fetchSubsSettingsFromSupabase(),
+        fetchExpensesFromSupabase(),
       ]);
       if (remotePlayers) {
         await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(remotePlayers));
@@ -369,6 +391,10 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (remoteSettings) {
         await AsyncStorage.setItem(sk(gid, 'subs_settings'), JSON.stringify(remoteSettings));
         queryClient.setQueryData(['subsSettings', gid], remoteSettings);
+      }
+      if (remoteExpenses) {
+        await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(remoteExpenses));
+        queryClient.setQueryData(['expenses', gid], remoteExpenses);
       }
       setSyncStatus('synced');
       console.log('[Restore] Data restored from Supabase');
