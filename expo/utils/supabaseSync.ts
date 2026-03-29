@@ -237,10 +237,16 @@ export async function fetchSubsPaymentsFromSupabase(): Promise<SubsPayment[] | n
   }
 }
 
-export async function syncExpensesToSupabase(expenses: Expense[]): Promise<void> {
+function getDefaultUserId(): string {
+  return process.env.EXPO_PUBLIC_PROJECT_ID ?? 'default-user';
+}
+
+export async function syncExpensesToSupabase(expenses: Expense[], groupId?: string): Promise<void> {
   if (!isSupabaseConfigured()) return;
   try {
-    await supabase.from('expenses').delete().neq('id', '');
+    const userId = getDefaultUserId();
+    const gid = groupId ?? 'default';
+    await supabase.from('expenses').delete().eq('group_id', gid);
     if (expenses.length === 0) return;
     const rows = expenses.map(e => ({
       id: e.id,
@@ -250,6 +256,8 @@ export async function syncExpensesToSupabase(expenses: Expense[]): Promise<void>
       date: e.date,
       created_at: e.createdAt,
       adjustment_type: e.adjustmentType ?? null,
+      user_id: userId,
+      group_id: gid,
     }));
     const { error } = await supabase.from('expenses').upsert(rows);
     if (error) console.log('[Supabase Sync] Error syncing expenses:', error.message);
@@ -259,10 +267,48 @@ export async function syncExpensesToSupabase(expenses: Expense[]): Promise<void>
   }
 }
 
-export async function fetchExpensesFromSupabase(): Promise<Expense[] | null> {
+export async function upsertExpenseToSupabase(expense: Expense, groupId: string): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const userId = getDefaultUserId();
+    const row = {
+      id: expense.id,
+      description: expense.description,
+      amount: expense.amount,
+      category: expense.category,
+      date: expense.date,
+      created_at: expense.createdAt,
+      adjustment_type: expense.adjustmentType ?? null,
+      user_id: userId,
+      group_id: groupId,
+    };
+    const { error } = await supabase.from('expenses').upsert(row);
+    if (error) console.log('[Supabase Sync] Error upserting expense:', error.message);
+    else console.log('[Supabase Sync] Expense upserted:', expense.id);
+  } catch (e) {
+    console.log('[Supabase Sync] Expense upsert failed:', e);
+  }
+}
+
+export async function deleteExpenseFromSupabase(expenseId: string): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { error } = await supabase.from('expenses').delete().eq('id', expenseId);
+    if (error) console.log('[Supabase Sync] Error deleting expense:', error.message);
+    else console.log('[Supabase Sync] Expense deleted:', expenseId);
+  } catch (e) {
+    console.log('[Supabase Sync] Expense delete failed:', e);
+  }
+}
+
+export async function fetchExpensesFromSupabase(groupId?: string): Promise<Expense[] | null> {
   if (!isSupabaseConfigured()) return null;
   try {
-    const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('expenses').select('*').order('created_at', { ascending: false });
+    if (groupId) {
+      query = query.eq('group_id', groupId);
+    }
+    const { data, error } = await query;
     if (error) {
       console.log('[Supabase Fetch] Error fetching expenses:', error.message);
       return null;
