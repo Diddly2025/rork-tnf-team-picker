@@ -184,7 +184,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
         try {
           console.log('[Hybrid] Local expenses empty, trying Supabase...');
-          const remote = await fetchExpensesFromSupabase();
+          const remote = gid ? await fetchExpensesFromSupabase(gid) : null;
           if (remote && remote.length > 0) {
             console.log('[Hybrid] Restored expenses from Supabase:', remote.length);
             await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(remote));
@@ -305,7 +305,9 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return expenses;
       await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(expenses));
       if (shouldSync()) {
-        void syncExpensesToSupabase(expenses, gid).catch(e => console.log('[Sync] Expenses bg sync error:', e));
+        if (gid) {
+          void syncExpensesToSupabase(expenses, gid).catch(e => console.log('[Sync] Expenses bg sync error:', e));
+        }
       }
       return expenses;
     },
@@ -352,7 +354,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         syncMatchResultsToSupabase(matchHistory),
         syncSubsPaymentsToSupabase(subsPayments),
         syncSubsSettingsToSupabase(subsSettings),
-        syncExpensesToSupabase(expenses, gid ?? undefined),
+        gid ? syncExpensesToSupabase(expenses, gid) : Promise.resolve(),
       ]);
       setSyncStatus('synced');
       console.log('[Sync] Full sync completed');
@@ -372,7 +374,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         fetchMatchResultsFromSupabase(),
         fetchSubsPaymentsFromSupabase(),
         fetchSubsSettingsFromSupabase(),
-        fetchExpensesFromSupabase(gid ?? undefined),
+        gid ? fetchExpensesFromSupabase(gid) : Promise.resolve(null),
       ]);
       if (remotePlayers) {
         await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(remotePlayers));

@@ -238,14 +238,21 @@ export async function fetchSubsPaymentsFromSupabase(): Promise<SubsPayment[] | n
 }
 
 function getDefaultUserId(): string {
-  return process.env.EXPO_PUBLIC_PROJECT_ID ?? 'default-user';
+  const projectId = process.env.EXPO_PUBLIC_PROJECT_ID ?? 'default';
+  const chars: string[] = projectId.split('');
+  const hex = chars
+    .map((c: string) => c.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('')
+    .padEnd(32, '0')
+    .slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
-export async function syncExpensesToSupabase(expenses: Expense[], groupId?: string): Promise<void> {
+export async function syncExpensesToSupabase(expenses: Expense[], groupId: string): Promise<void> {
   if (!isSupabaseConfigured()) return;
   try {
     const userId = getDefaultUserId();
-    const gid = groupId ?? 'default';
+    const gid = groupId;
     await supabase.from('expenses').delete().eq('group_id', gid);
     if (expenses.length === 0) return;
     const rows = expenses.map(e => ({
@@ -282,9 +289,10 @@ export async function upsertExpenseToSupabase(expense: Expense, groupId: string)
       user_id: userId,
       group_id: groupId,
     };
+    console.log('[Supabase Sync] Upserting expense row:', JSON.stringify(row));
     const { error } = await supabase.from('expenses').upsert(row);
-    if (error) console.log('[Supabase Sync] Error upserting expense:', error.message);
-    else console.log('[Supabase Sync] Expense upserted:', expense.id);
+    if (error) console.log('[Supabase Sync] Error upserting expense:', error.message, error.details, error.hint);
+    else console.log('[Supabase Sync] Expense upserted successfully:', expense.id);
   } catch (e) {
     console.log('[Supabase Sync] Expense upsert failed:', e);
   }
@@ -301,13 +309,10 @@ export async function deleteExpenseFromSupabase(expenseId: string): Promise<void
   }
 }
 
-export async function fetchExpensesFromSupabase(groupId?: string): Promise<Expense[] | null> {
+export async function fetchExpensesFromSupabase(groupId: string): Promise<Expense[] | null> {
   if (!isSupabaseConfigured()) return null;
   try {
-    let query = supabase.from('expenses').select('*').order('created_at', { ascending: false });
-    if (groupId) {
-      query = query.eq('group_id', groupId);
-    }
+    const query = supabase.from('expenses').select('*').eq('group_id', groupId).order('created_at', { ascending: false });
     const { data, error } = await query;
     if (error) {
       console.log('[Supabase Fetch] Error fetching expenses:', error.message);
