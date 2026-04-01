@@ -2,5 +2,8 @@ export function redirectSystemPath({
   path,
   initial,
 }: { path: string; initial: boolean }) {
-  return '/(tabs)/(players)';
+  if (initial) {
+    return '/';
+  }
+  return path;
 }

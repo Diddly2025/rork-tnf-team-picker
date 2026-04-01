@@ -268,7 +268,7 @@ export default function MatchDayScreen() {
       : `Who can't ${getPlayerById(selectedPlayer1 ?? '')?.name ?? ''} play WITH?`;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="matchday-screen">
       <FlatList
         data={sortedPlayers}
         renderItem={renderPlayer}

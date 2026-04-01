@@ -224,7 +224,7 @@ export default function HistoryScreen() {
   const teamBWins = matchHistory.filter(m => m.scoreB > m.scoreA).length;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="history-screen">
       {groups.length > 1 && (
         <View style={styles.filterSection}>
           <ScrollView

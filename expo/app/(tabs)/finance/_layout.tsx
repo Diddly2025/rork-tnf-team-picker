@@ -9,6 +9,7 @@ export default function FinanceLayout() {
         headerTitleStyle: { color: Colors.text, fontWeight: '700' },
         headerTintColor: Colors.gold,
         headerShadowVisible: false,
+        contentStyle: { backgroundColor: Colors.background },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Finance' }} />

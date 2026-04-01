@@ -109,7 +109,7 @@ export default function ManualTeamsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="manual-teams-screen">
       <Stack.Screen options={{ 
         title: 'Build Teams',
         headerLeft: () => (

@@ -166,7 +166,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]} testID="home-screen">
       <View style={styles.topBar}>
         <View style={styles.brandRow}>
           <View style={styles.logoMark}>

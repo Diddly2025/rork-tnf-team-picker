@@ -64,7 +64,7 @@ export default function StatsScreen() {
         motm: getPlayerMotmCount(mp.id),
       };
     });
-  }, [players, matchHistory]);
+  }, [players, matchHistory, getPlayerAppearances, getPlayerWins, getPlayerDraws, getPlayerLosses, getPlayerWinPercentage, getPlayerMotmCount]);
 
   const appearanceLeaders = useMemo(
     () => [...playerStats].sort((a, b) => b.appearances - a.appearances),
@@ -184,7 +184,7 @@ export default function StatsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} testID="stats-screen" contentContainerStyle={styles.content}>
       <View style={styles.overviewGrid}>
         <View style={[styles.overviewCard, styles.overviewCardWide]}>
           <Trophy size={20} color={Colors.gold} />

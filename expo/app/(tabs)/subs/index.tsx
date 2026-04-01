@@ -310,7 +310,7 @@ export default function SubsScreen() {
   const playerBalance = selectedPlayer ? getPlayerBalance(selectedPlayer.id) : 0;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="subs-screen">
       {groups.length > 1 && (
         <View style={styles.filterSection}>
           <ScrollView

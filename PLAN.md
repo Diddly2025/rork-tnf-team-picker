@@ -1,26 +1,27 @@
-# Fix Expenses & Kitty Adjustments Supabase Sync
+# User Authentication System (Supabase Auth)
 
-## Problem
-When expenses, kitty adjustments, or opening balances are created, they save locally but the Supabase sync is missing the required `user_id` and `group_id` columns — so the rows either fail silently or are incomplete in the cloud.
+## Overview
+Add complete user authentication to PlayDay using Supabase Auth, replacing the placeholder `getDefaultUserId()` with real authenticated user IDs.
 
-## What will be fixed
+## Completed
 
-**1. Save to Supabase with all required fields**
-- Update the sync function to include `user_id` and `group_id` when writing expenses to Supabase
-- The active group ID will be passed from the app context
-- A placeholder user ID will be derived from the project config (since there's no auth system in place)
+- [x] **Supabase client updated** — Added AsyncStorage-based session persistence, auto-refresh tokens, `getAuthUserId()` helper
+- [x] **AuthProvider context** — Created `context/AuthContext.tsx` with session state, `signIn`, `signUp`, `signOut`, `resetPassword` methods using `createContextHook`
+- [x] **Login screen** — `app/login.tsx` with email/password fields, PlayDay branding, error handling, links to register and forgot password
+- [x] **Register screen** — `app/register.tsx` with email, password, confirm password, email confirmation flow
+- [x] **Forgot Password screen** — `app/forgot-password.tsx` with email input, success state after sending reset email
+- [x] **App layout auth routing** — `app/_layout.tsx` updated with `useProtectedRoute()` guard that redirects unauthenticated users to login, and authenticated users away from auth screens
+- [x] **Replaced getDefaultUserId()** — `utils/supabaseSync.ts` now uses `supabase.auth.getUser()` to get the real authenticated user ID for all Supabase writes
+- [x] **Logout button** — Added to the Cloud tab in Finance screen with confirmation dialog, shows signed-in email
+- [x] **Session persistence** — Supabase sessions stored in AsyncStorage, users stay logged in between app restarts
+- [x] **Error handling** — Clear messages for wrong credentials, already registered email, password mismatch, network errors
 
-**2. Immediate sync on creation**
-- Add a new function that upserts a single expense row to Supabase right when it's created — no need to wait for a manual full sync
-- Same for deleting an expense — it will be removed from Supabase immediately
-
-**3. Restore from cloud includes all fields**
-- Update the fetch/restore function to correctly map `user_id` and `group_id` back when loading expenses from Supabase
-- Ensure adjustments (additions, deductions, opening balance) all restore correctly
-
-**4. Full sync also updated**
-- The existing full "Save to Cloud" and "Restore from Cloud" functions will use the updated logic with all required columns populated
-
-## Files changed
-- Sync utility — add `group_id` and `user_id` to expense rows, add single-expense upsert and delete functions
-- App data context — pass `group_id` when syncing, call immediate upsert on expense creation and delete on removal
+## Files Changed
+- `utils/supabase.ts` — Auth session persistence config, `getAuthUserId()` export
+- `context/AuthContext.tsx` — New auth context provider
+- `app/_layout.tsx` — Auth provider wrapping, protected route guard, splash screen tied to auth check
+- `app/login.tsx` — New login screen
+- `app/register.tsx` — New register screen
+- `app/forgot-password.tsx` — New forgot password screen
+- `utils/supabaseSync.ts` — Replaced `getDefaultUserId()` with async `getAuthUserId()` using real Supabase auth
+- `app/(tabs)/finance/index.tsx` — Added logout button and auth context usage in Cloud tab

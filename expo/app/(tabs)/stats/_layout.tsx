@@ -9,6 +9,7 @@ export default function StatsLayout() {
         headerTintColor: Colors.text,
         headerTitleStyle: { fontWeight: '700' },
         headerShadowVisible: false,
+        contentStyle: { backgroundColor: Colors.background },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Statistics' }} />

@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, View } from 'react-native';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { GroupProvider } from '@/context/GroupContext';
 import { TNFProvider } from '@/context/TNFContext';
 import Colors from '@/constants/colors';
@@ -12,16 +14,57 @@ void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+function useProtectedRoute() {
+  const { isAuthenticated, isLoading, initialCheckDone } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!initialCheckDone || isLoading) return;
+
+    const inAuthGroup = segments[0] === 'login' || segments[0] === 'register' || segments[0] === 'forgot-password';
+
+    if (!isAuthenticated && !inAuthGroup) {
+      console.log('[AuthGuard] Not authenticated, redirecting to login');
+      router.replace('/login');
+    } else if (isAuthenticated && inAuthGroup) {
+      console.log('[AuthGuard] Authenticated, redirecting to home');
+      router.replace('/');
+    }
+  }, [isAuthenticated, isLoading, initialCheckDone, segments, router]);
+}
+
 function RootLayoutNav() {
+  const { isLoading, initialCheckDone } = useAuth();
+
+  useProtectedRoute();
+
+  useEffect(() => {
+    if (initialCheckDone) {
+      void SplashScreen.hideAsync();
+    }
+  }, [initialCheckDone]);
+
+  if (!initialCheckDone || isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color={Colors.gold} />
+      </View>
+    );
+  }
+
   return (
-    <Stack 
-      screenOptions={{ 
+    <Stack
+      screenOptions={{
         headerBackTitle: 'Back',
         headerStyle: { backgroundColor: Colors.background },
         headerTintColor: Colors.text,
         contentStyle: { backgroundColor: Colors.background },
       }}
     >
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ headerShown: false }} />
+      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="group-setup" options={{ headerShown: false, presentation: 'modal' }} />
@@ -35,20 +78,18 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    void SplashScreen.hideAsync();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
-      <GroupProvider>
-        <TNFProvider>
-          <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.background }}>
-            <StatusBar style="dark" />
-            <RootLayoutNav />
-          </GestureHandlerRootView>
-        </TNFProvider>
-      </GroupProvider>
+      <AuthProvider>
+        <GroupProvider>
+          <TNFProvider>
+            <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.background }} testID="root-layout">
+              <StatusBar style="dark" />
+              <RootLayoutNav />
+            </GestureHandlerRootView>
+          </TNFProvider>
+        </GroupProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

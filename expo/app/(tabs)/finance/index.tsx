@@ -37,9 +37,12 @@ import {
   ArrowDownCircle,
   Pencil,
   Wallet,
+  LogOut,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
+import { useAuth } from '@/context/AuthContext';
 import { SPORT_CONFIGS } from '@/constants/sports';
 import Colors from '@/constants/colors';
 import { Expense } from '@/types';
@@ -86,6 +89,8 @@ export default function FinanceScreen() {
   } = useTNF();
 
   const { groups, activeGroup, activeGroupId, setActiveGroup } = useGroup();
+  const { signOut, user } = useAuth();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('kitty');
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
@@ -560,6 +565,43 @@ export default function FinanceScreen() {
           ? 'Data syncs automatically when you make changes. Use these buttons for manual full sync/restore.'
           : 'Turn on Cloud Sync above to enable automatic backup to Supabase.'}
       </Text>
+
+      <View style={styles.accountSection}>
+        <Text style={styles.accountSectionTitle}>ACCOUNT</Text>
+        {user?.email ? (
+          <Text style={styles.accountEmail}>Signed in as {user.email}</Text>
+        ) : null}
+        <Pressable
+          style={styles.logoutButton}
+          onPress={() => {
+            Alert.alert(
+              'Sign Out',
+              'Are you sure you want to sign out?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Sign Out',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await signOut();
+                      console.log('[Finance] Signed out, navigating to login');
+                      router.replace('/login');
+                    } catch (e) {
+                      console.log('[Finance] Sign out error:', e);
+                      Alert.alert('Error', 'Failed to sign out. Please try again.');
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+          testID="logout-button"
+        >
+          <LogOut size={20} color="#fff" />
+          <Text style={styles.logoutButtonText}>Sign Out</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 
@@ -756,7 +798,7 @@ export default function FinanceScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="finance-screen">
       {groups.length > 1 && (
         <View style={styles.filterSection}>
           <ScrollView
@@ -1931,6 +1973,38 @@ const styles = StyleSheet.create({
   addExpenseButtonText: {
     fontSize: 16,
     fontWeight: '700' as const,
+    color: '#fff',
+  },
+  accountSection: {
+    marginTop: 32,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: Colors.cardBorder,
+  },
+  accountSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  accountEmail: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 16,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.danger,
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 10,
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
     color: '#fff',
   },
 });

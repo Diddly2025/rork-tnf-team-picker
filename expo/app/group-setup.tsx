@@ -66,7 +66,7 @@ export default function GroupSetupScreen() {
   }, [groupName, sport, customSport, playersPerTeam, playDay, playTime, costPerSession, addGroup, router]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="group-setup-screen">
       <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView
         style={styles.flex}

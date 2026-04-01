@@ -120,7 +120,7 @@ export default function PlayersScreen() {
   const sportConfig = activeGroup ? getSportConfig(activeGroup.sport) : null;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="players-screen">
       {activeGroup && (
         <Pressable style={styles.groupBanner} onPress={() => router.push('/manage-groups' as any)}>
           <View style={styles.groupBannerLeft}>

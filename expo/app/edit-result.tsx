@@ -132,7 +132,7 @@ export default function EditResultScreen() {
 
   if (!match) {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} testID="edit-result-screen">
         <Stack.Screen options={{ title: 'Edit Result' }} />
         <Text style={styles.notFound}>Match not found</Text>
       </View>

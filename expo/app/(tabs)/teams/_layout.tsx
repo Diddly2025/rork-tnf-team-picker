@@ -9,6 +9,7 @@ export default function TeamsLayout() {
         headerTintColor: Colors.text,
         headerTitleStyle: { fontWeight: '700' },
         contentStyle: { backgroundColor: Colors.background },
+        headerShadowVisible: false,
       }}
     >
       <Stack.Screen 

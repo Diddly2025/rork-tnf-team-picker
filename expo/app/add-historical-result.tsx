@@ -351,7 +351,7 @@ export default function AddHistoricalResultScreen() {
   const nextLabel = step === 'motm' ? 'Save Result' : 'Next';
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="add-historical-result-screen">
       <Stack.Screen options={{
         title: 'Add Past Result',
         headerLeft: () => (

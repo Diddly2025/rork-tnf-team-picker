@@ -78,7 +78,7 @@ export default function MatchResultScreen() {
 
   if (!teamOption) {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} testID="match-result-screen">
         <Stack.Screen options={{ title: 'Record Result' }} />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>No team data found</Text>

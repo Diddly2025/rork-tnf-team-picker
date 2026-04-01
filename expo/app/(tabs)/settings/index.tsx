@@ -126,7 +126,7 @@ export default function RestrictionsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="settings-screen">
       <View style={styles.infoCard}>
         <AlertTriangle size={20} color={Colors.warning} />
         <Text style={styles.infoText}>

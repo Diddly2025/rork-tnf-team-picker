@@ -237,21 +237,29 @@ export async function fetchSubsPaymentsFromSupabase(): Promise<SubsPayment[] | n
   }
 }
 
-function getDefaultUserId(): string {
-  const projectId = process.env.EXPO_PUBLIC_PROJECT_ID ?? 'default';
-  const chars: string[] = projectId.split('');
-  const hex = chars
-    .map((c: string) => c.charCodeAt(0).toString(16).padStart(2, '0'))
-    .join('')
-    .padEnd(32, '0')
-    .slice(0, 32);
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+async function getAuthUserId(): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) {
+      console.log('[Supabase Auth] Got user ID:', user.id);
+      return user.id;
+    }
+    console.log('[Supabase Auth] No authenticated user found');
+    return null;
+  } catch (e) {
+    console.log('[Supabase Auth] Error getting user:', e);
+    return null;
+  }
 }
 
 export async function syncExpensesToSupabase(expenses: Expense[], groupId: string): Promise<void> {
   if (!isSupabaseConfigured()) return;
   try {
-    const userId = getDefaultUserId();
+    const userId = await getAuthUserId();
+    if (!userId) {
+      console.log('[Supabase Sync] No authenticated user, skipping expense sync');
+      return;
+    }
     const gid = groupId;
     await supabase.from('expenses').delete().eq('group_id', gid);
     if (expenses.length === 0) return;
@@ -277,7 +285,11 @@ export async function syncExpensesToSupabase(expenses: Expense[], groupId: strin
 export async function upsertExpenseToSupabase(expense: Expense, groupId: string): Promise<void> {
   if (!isSupabaseConfigured()) return;
   try {
-    const userId = getDefaultUserId();
+    const userId = await getAuthUserId();
+    if (!userId) {
+      console.log('[Supabase Sync] No authenticated user, skipping expense upsert');
+      return;
+    }
     const row = {
       id: expense.id,
       description: expense.description,

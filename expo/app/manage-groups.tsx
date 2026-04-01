@@ -126,7 +126,7 @@ export default function ManageGroupsScreen() {
   }, [activeGroupId, handleSwitch, handleDelete, handleOpenEdit]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="manage-groups-screen">
       <Stack.Screen options={{
         title: 'Your Groups',
         headerLeft: () => (

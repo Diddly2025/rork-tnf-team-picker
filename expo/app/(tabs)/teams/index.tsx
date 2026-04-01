@@ -55,7 +55,7 @@ export default function TeamsScreen() {
   const currentTeam = generatedTeams[currentIndex];
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="teams-screen">
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <Pressable 
