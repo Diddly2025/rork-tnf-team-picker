@@ -13,8 +13,10 @@ import { useRouter, RelativePathString } from 'expo-router';
 import { CheckCircle, Circle, Users, Shuffle, Edit3, Ban, Plus, X, AlertTriangle, UserX, Link2, Eye } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import PlayerCard from '@/components/PlayerCard';
+import PlayerAvatar from '@/components/PlayerAvatar';
 import { Player, Restriction } from '@/types';
 import Colors from '@/constants/colors';
+import { getRatingTier } from '@/utils/teamGenerator';
 
 export default function MatchDayScreen() {
   const router = useRouter();
@@ -157,32 +159,53 @@ export default function MatchDayScreen() {
     });
   }, [players, restrictions]);
 
-  const renderPlayer = useCallback(({ item }: { item: Player }) => {
+  const renderPlayer = useCallback(({ item, index }: { item: Player; index: number }) => {
     const isSelected = selectedPlayerIds.includes(item.id);
     const appearances = getPlayerAppearances(item.id);
+    const tier = getRatingTier(item.rating);
+    const tierColor = tier === 'gold' ? '#c8a02a' : tier === 'silver' ? '#6b7280' : '#b5651d';
+    const isLeft = index % 2 === 0;
     return (
-      <Pressable 
-        style={[styles.playerRow, isSelected && styles.playerRowSelected]}
+      <Pressable
+        style={[styles.gridCard, isSelected && styles.gridCardSelected, { marginRight: isLeft ? 5 : 0, marginLeft: isLeft ? 0 : 5 }]}
         onPress={() => togglePlayerSelection(item.id)}
         testID={`player-row-${item.id}`}
       >
-        <View style={styles.playerInfo}>
-          <PlayerCard player={item} size="small" />
-          <View style={styles.playerDetails}>
-            <Text style={styles.playerName}>{item.name}</Text>
-            <Text style={styles.playerPosition}>{item.position} • {item.rating} OVR</Text>
+        <View style={styles.gridCardInner}>
+          <View style={styles.gridAvatarRow}>
+            <View style={styles.gridAvatarWrap}>
+              <PlayerAvatar
+                name={item.name}
+                photoUrl={item.photo}
+                size={46}
+                borderColor={isSelected ? Colors.success : '#e2e4e8'}
+                borderWidth={2}
+              />
+              <View style={[styles.gridRatingBadge, { backgroundColor: tierColor }]}>
+                <Text style={styles.gridRatingText}>{item.rating}</Text>
+              </View>
+            </View>
+            <Pressable
+              style={[styles.gridToggle, isSelected && styles.gridToggleSelected]}
+              onPress={() => togglePlayerSelection(item.id)}
+              hitSlop={8}
+            >
+              {isSelected ? (
+                <CheckCircle size={26} color="#fff" />
+              ) : (
+                <Circle size={26} color={Colors.textMuted} />
+              )}
+            </Pressable>
+          </View>
+          <Text style={[styles.gridName, isSelected && styles.gridNameSelected]} numberOfLines={1}>{item.name}</Text>
+          <View style={styles.gridMeta}>
+            <Text style={styles.gridPosition}>{item.position}</Text>
             {appearances > 0 && (
-              <Text style={styles.playerApps}>{appearances} app{appearances !== 1 ? 's' : ''}</Text>
+              <Text style={styles.gridApps}>{appearances} app{appearances !== 1 ? 's' : ''}</Text>
             )}
           </View>
         </View>
-        <View style={styles.checkContainer}>
-          {isSelected ? (
-            <CheckCircle size={28} color={Colors.success} />
-          ) : (
-            <Circle size={28} color={Colors.textMuted} />
-          )}
-        </View>
+        {isSelected && <View style={styles.gridSelectedStripe} />}
       </Pressable>
     );
   }, [selectedPlayerIds, togglePlayerSelection, getPlayerAppearances]);
@@ -273,8 +296,13 @@ export default function MatchDayScreen() {
         data={sortedPlayers}
         renderItem={renderPlayer}
         keyExtractor={(item) => item.id}
+        numColumns={2}
         contentContainerStyle={[styles.listContent, players.length > 0 && { paddingTop: 80 }]}
         ListEmptyComponent={renderEmpty}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={12}
+        windowSize={7}
+        columnWrapperStyle={styles.gridRow}
       />
 
       {players.length > 0 && (
@@ -619,47 +647,94 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 120,
   },
-  playerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  gridRow: {
     justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  gridCard: {
+    flex: 1,
     backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    padding: 8,
-    marginBottom: 8,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: Colors.cardBorder,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  playerRowSelected: {
+  gridCardSelected: {
     borderColor: Colors.success,
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    backgroundColor: 'rgba(34, 197, 94, 0.06)',
   },
-  playerInfo: {
+  gridCardInner: {
+    padding: 12,
+    paddingBottom: 10,
+  },
+  gridAvatarRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  gridAvatarWrap: {
+    position: 'relative',
+  },
+  gridRatingBadge: {
+    position: 'absolute',
+    bottom: -4,
+    left: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    minWidth: 26,
+    alignItems: 'center',
+  },
+  gridRatingText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800' as const,
+  },
+  gridToggle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.04)',
+  },
+  gridToggleSelected: {
+    backgroundColor: Colors.success,
+  },
+  gridName: {
+    color: Colors.text,
+    fontSize: 14,
+    fontWeight: '600' as const,
+    marginTop: 10,
+  },
+  gridNameSelected: {
+    color: Colors.success,
+  },
+  gridMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 6,
+    marginTop: 3,
   },
-  playerDetails: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  playerName: {
-    color: Colors.text,
-    fontSize: 16,
-    fontWeight: '600' as const,
-  },
-  playerPosition: {
+  gridPosition: {
     color: Colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  playerApps: {
-    color: Colors.textMuted,
     fontSize: 11,
-    marginTop: 1,
+    fontWeight: '500' as const,
   },
-  checkContainer: {
-    padding: 8,
+  gridApps: {
+    color: Colors.textMuted,
+    fontSize: 10,
+  },
+  gridSelectedStripe: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: Colors.success,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
   },
   emptyState: {
     flex: 1,
