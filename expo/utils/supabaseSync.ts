@@ -237,31 +237,10 @@ export async function fetchSubsPaymentsFromSupabase(): Promise<SubsPayment[] | n
   }
 }
 
-async function getAuthUserId(): Promise<string | null> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.id) {
-      console.log('[Supabase Auth] Got user ID:', user.id);
-      return user.id;
-    }
-    console.log('[Supabase Auth] No authenticated user found');
-    return null;
-  } catch (e) {
-    console.log('[Supabase Auth] Error getting user:', e);
-    return null;
-  }
-}
-
-export async function syncExpensesToSupabase(expenses: Expense[], groupId: string): Promise<void> {
+export async function syncExpensesToSupabase(expenses: Expense[]): Promise<void> {
   if (!isSupabaseConfigured()) return;
   try {
-    const userId = await getAuthUserId();
-    if (!userId) {
-      console.log('[Supabase Sync] No authenticated user, skipping expense sync');
-      return;
-    }
-    const gid = groupId;
-    await supabase.from('expenses').delete().eq('group_id', gid);
+    await supabase.from('expenses').delete().neq('id', '');
     if (expenses.length === 0) return;
     const rows = expenses.map(e => ({
       id: e.id,
@@ -271,8 +250,6 @@ export async function syncExpensesToSupabase(expenses: Expense[], groupId: strin
       date: e.date,
       created_at: e.createdAt,
       adjustment_type: e.adjustmentType ?? null,
-      user_id: userId,
-      group_id: gid,
     }));
     const { error } = await supabase.from('expenses').upsert(rows);
     if (error) console.log('[Supabase Sync] Error syncing expenses:', error.message);
@@ -282,14 +259,9 @@ export async function syncExpensesToSupabase(expenses: Expense[], groupId: strin
   }
 }
 
-export async function upsertExpenseToSupabase(expense: Expense, groupId: string): Promise<void> {
+export async function upsertExpenseToSupabase(expense: Expense): Promise<void> {
   if (!isSupabaseConfigured()) return;
   try {
-    const userId = await getAuthUserId();
-    if (!userId) {
-      console.log('[Supabase Sync] No authenticated user, skipping expense upsert');
-      return;
-    }
     const row = {
       id: expense.id,
       description: expense.description,
@@ -298,8 +270,6 @@ export async function upsertExpenseToSupabase(expense: Expense, groupId: string)
       date: expense.date,
       created_at: expense.createdAt,
       adjustment_type: expense.adjustmentType ?? null,
-      user_id: userId,
-      group_id: groupId,
     };
     console.log('[Supabase Sync] Upserting expense row:', JSON.stringify(row));
     const { error } = await supabase.from('expenses').upsert(row);
@@ -321,11 +291,10 @@ export async function deleteExpenseFromSupabase(expenseId: string): Promise<void
   }
 }
 
-export async function fetchExpensesFromSupabase(groupId: string): Promise<Expense[] | null> {
+export async function fetchExpensesFromSupabase(): Promise<Expense[] | null> {
   if (!isSupabaseConfigured()) return null;
   try {
-    const query = supabase.from('expenses').select('*').eq('group_id', groupId).order('created_at', { ascending: false });
-    const { data, error } = await query;
+    const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
     if (error) {
       console.log('[Supabase Fetch] Error fetching expenses:', error.message);
       return null;

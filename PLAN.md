@@ -1,27 +1,20 @@
-# User Authentication System (Supabase Auth)
+# Fix expenses sync to match the working subs_payments pattern
 
-## Overview
-Add complete user authentication to PlayDay using Supabase Auth, replacing the placeholder `getDefaultUserId()` with real authenticated user IDs.
+**Problem**
+The expenses sync code requires a logged-in user ID and a group ID, and filters/deletes by `group_id`. The working subs_payments sync uses a much simpler approach — it just deletes everything with `.neq('id', '')` and upserts rows without any `user_id` or `group_id` columns. This mismatch is why expenses fail to sync.
 
-## Completed
+**What will change**
 
-- [x] **Supabase client updated** — Added AsyncStorage-based session persistence, auto-refresh tokens, `getAuthUserId()` helper
-- [x] **AuthProvider context** — Created `context/AuthContext.tsx` with session state, `signIn`, `signUp`, `signOut`, `resetPassword` methods using `createContextHook`
-- [x] **Login screen** — `app/login.tsx` with email/password fields, PlayDay branding, error handling, links to register and forgot password
-- [x] **Register screen** — `app/register.tsx` with email, password, confirm password, email confirmation flow
-- [x] **Forgot Password screen** — `app/forgot-password.tsx` with email input, success state after sending reset email
-- [x] **App layout auth routing** — `app/_layout.tsx` updated with `useProtectedRoute()` guard that redirects unauthenticated users to login, and authenticated users away from auth screens
-- [x] **Replaced getDefaultUserId()** — `utils/supabaseSync.ts` now uses `supabase.auth.getUser()` to get the real authenticated user ID for all Supabase writes
-- [x] **Logout button** — Added to the Cloud tab in Finance screen with confirmation dialog, shows signed-in email
-- [x] **Session persistence** — Supabase sessions stored in AsyncStorage, users stay logged in between app restarts
-- [x] **Error handling** — Clear messages for wrong credentials, already registered email, password mismatch, network errors
+- **Sync function rewrite** — The expenses sync (bulk sync, single upsert, delete, and fetch) will be rewritten to match the exact same pattern as `subs_payments`:
+  - Remove the `user_id` and `group_id` columns from all expense writes
+  - Remove the auth user check — no more skipping sync if no authenticated user
+  - Remove the `groupId` parameter from all expenses sync functions
+  - Use `.neq('id', '')` for bulk delete (same as subs_payments) instead of `.eq('group_id', ...)`
+  - Fetch all expenses with `.select('*').order('created_at', ...)` without group filtering
 
-## Files Changed
-- `utils/supabase.ts` — Auth session persistence config, `getAuthUserId()` export
-- `context/AuthContext.tsx` — New auth context provider
-- `app/_layout.tsx` — Auth provider wrapping, protected route guard, splash screen tied to auth check
-- `app/login.tsx` — New login screen
-- `app/register.tsx` — New register screen
-- `app/forgot-password.tsx` — New forgot password screen
-- `utils/supabaseSync.ts` — Replaced `getDefaultUserId()` with async `getAuthUserId()` using real Supabase auth
-- `app/(tabs)/finance/index.tsx` — Added logout button and auth context usage in Cloud tab
+- **Update all callers** — Any screen or provider that calls the expenses sync functions will be updated to remove the `groupId` argument
+
+- **No table structure changes needed in the app** — The `user_id` and `group_id` columns can stay in Supabase (nullable), they just won't be written to anymore. The app will stop sending those fields.
+
+**Result**
+Expenses, adjustments, and opening balances will sync to Supabase reliably using the same proven pattern as subs_payments.
