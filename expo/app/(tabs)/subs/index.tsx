@@ -16,6 +16,7 @@ import {
   Wallet, Plus, X, ChevronRight, TrendingUp, TrendingDown,
   Settings, Trash2, PoundSterling, ChevronLeft, AlertTriangle, Coins, UserPlus, Ban, History,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
 import { SPORT_CONFIGS } from '@/constants/sports';
@@ -37,6 +38,7 @@ function getToday(): Date {
 
 export default function SubsScreen() {
   console.log('[Subs] Screen rendered');
+  const router = useRouter();
   const {
     players,
     getPlayerBalance,
