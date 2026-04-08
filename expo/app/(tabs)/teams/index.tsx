@@ -14,6 +14,7 @@ import PlayerAvatar from '@/components/PlayerAvatar';
 import Colors from '@/constants/colors';
 
 export default function TeamsScreen() {
+  console.log('[Teams] Screen rendered');
   const router = useRouter();
   const { generatedTeams, generateTeams, selectedPlayerIds } = useTNF();
   const [currentIndex, setCurrentIndex] = useState(0);

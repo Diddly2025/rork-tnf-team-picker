@@ -19,6 +19,7 @@ import { Group } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function ManageGroupsScreen() {
+  console.log('[ManageGroups] Screen rendered');
   const router = useRouter();
   const { groups, activeGroupId, setActiveGroup, deleteGroup, updateGroup } = useGroup();
 

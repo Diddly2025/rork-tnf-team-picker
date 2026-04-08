@@ -19,6 +19,7 @@ import Colors from '@/constants/colors';
 import { getRatingTier } from '@/utils/teamGenerator';
 
 export default function MatchDayScreen() {
+  console.log('[MatchDay] Screen rendered');
   const router = useRouter();
   const { 
     players, 

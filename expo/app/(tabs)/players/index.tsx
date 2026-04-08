@@ -20,6 +20,7 @@ import { Player } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function PlayersScreen() {
+  console.log('[Players] Screen rendered');
   const router = useRouter();
   const { activeGroup } = useGroup();
   const { 

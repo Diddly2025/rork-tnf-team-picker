@@ -18,6 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import Colors from '@/constants/colors';
 
 export default function LoginScreen() {
+  console.log('[Login] Screen rendered');
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();

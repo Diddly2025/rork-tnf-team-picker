@@ -16,6 +16,7 @@ import { Player, Team } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function ManualTeamsScreen() {
+  console.log('[ManualTeams] Screen rendered');
   const router = useRouter();
   const { 
     selectedPlayers,

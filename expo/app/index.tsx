@@ -17,6 +17,7 @@ import { Group } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function HomeScreen() {
+  console.log('[Home] Screen rendered');
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { groups, setActiveGroup, isLoading } = useGroup();

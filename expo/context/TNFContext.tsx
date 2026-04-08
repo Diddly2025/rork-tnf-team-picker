@@ -2,7 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Player, Restriction, TeamOption, MatchResult, SubsPayment, SubsSettings, Expense } from '@/types';
+import { Player, Restriction, TeamOption, MatchResult, SubsPayment, SubsSettings, Expense, SubsPriceHistory } from '@/types';
 import { generateTeamOptions } from '@/utils/teamGenerator';
 import { useGroup } from '@/context/GroupContext';
 import { getSportConfig, SportConfig } from '@/constants/sports';
@@ -15,12 +15,14 @@ import {
   syncExpensesToSupabase,
   upsertExpenseToSupabase,
   deleteExpenseFromSupabase,
+  syncSubsPriceHistoryToSupabase,
   fetchPlayersFromSupabase,
   fetchRestrictionsFromSupabase,
   fetchMatchResultsFromSupabase,
   fetchSubsPaymentsFromSupabase,
   fetchSubsSettingsFromSupabase,
   fetchExpensesFromSupabase,
+  fetchSubsPriceHistoryFromSupabase,
   getCloudSyncEnabled,
   setCloudSyncEnabled as saveCloudSyncPref,
 } from '@/utils/supabaseSync';
@@ -28,6 +30,23 @@ import { isSupabaseConfigured } from '@/utils/supabase';
 
 function sk(groupId: string | null, suffix: string): string {
   return `pd_${groupId ?? 'none'}_${suffix}`;
+}
+
+function normaliseDateForCompare(dateStr: string): string {
+  const months: Record<string, string> = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  };
+  const parts = dateStr.trim().split(/[\s,/-]+/);
+  if (parts.length >= 3) {
+    const day = parts[0].padStart(2, '0');
+    const monthKey = parts[1].toLowerCase().substring(0, 3);
+    const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+    const month = months[monthKey] ?? '01';
+    return `${year}-${month}-${day}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.substring(0, 10);
+  return dateStr;
 }
 
 export const [TNFProvider, useTNF] = createContextHook(() => {
@@ -222,13 +241,39 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     enabled: hasGroup,
   });
 
+  const priceHistoryQuery = useQuery({
+    queryKey: ['priceHistory', gid],
+    queryFn: async () => {
+      if (!gid) return [];
+      const stored = await AsyncStorage.getItem(sk(gid, 'price_history'));
+      const localData = stored ? (JSON.parse(stored) as SubsPriceHistory[]) : [];
+
+      if (!initialSyncDone.current && localData.length === 0 && cloudSyncRef.current && isSupabaseConfigured()) {
+        try {
+          console.log('[Hybrid] Local price history empty, trying Supabase...');
+          const remote = await fetchSubsPriceHistoryFromSupabase();
+          if (remote && remote.length > 0) {
+            console.log('[Hybrid] Restored price history from Supabase:', remote.length);
+            await AsyncStorage.setItem(sk(gid, 'price_history'), JSON.stringify(remote));
+            return remote;
+          }
+        } catch (e) {
+          console.log('[Hybrid] Supabase fetch failed, using local:', e);
+        }
+      }
+      return localData;
+    },
+    enabled: hasGroup,
+  });
+
   useEffect(() => {
     if (
       !playersQuery.isLoading &&
       !restrictionsQuery.isLoading &&
       !matchHistoryQuery.isLoading &&
       !subsPaymentsQuery.isLoading &&
-      !subsSettingsQuery.isLoading
+      !subsSettingsQuery.isLoading &&
+      !priceHistoryQuery.isLoading
     ) {
       initialSyncDone.current = true;
     }
@@ -238,6 +283,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     matchHistoryQuery.isLoading,
     subsPaymentsQuery.isLoading,
     subsSettingsQuery.isLoading,
+    priceHistoryQuery.isLoading,
   ]);
 
   const { mutate: savePlayers } = useMutation({
@@ -332,11 +378,30 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     },
   });
 
+  const { mutate: savePriceHistory } = useMutation({
+    mutationFn: async (entries: SubsPriceHistory[]) => {
+      if (!gid) return entries;
+      await AsyncStorage.setItem(sk(gid, 'price_history'), JSON.stringify(entries));
+      if (shouldSync()) {
+        void syncSubsPriceHistoryToSupabase(entries).catch(e => console.log('[Sync] Price history bg sync error:', e));
+      }
+      return entries;
+    },
+    onMutate: async (entries) => {
+      await queryClient.cancelQueries({ queryKey: ['priceHistory', gid] });
+      queryClient.setQueryData(['priceHistory', gid], entries);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['priceHistory', gid], data);
+    },
+  });
+
   const players = useMemo(() => playersQuery.data ?? [], [playersQuery.data]);
   const restrictions = useMemo(() => restrictionsQuery.data ?? [], [restrictionsQuery.data]);
   const matchHistory = useMemo(() => matchHistoryQuery.data ?? [], [matchHistoryQuery.data]);
   const subsPayments = useMemo(() => subsPaymentsQuery.data ?? [], [subsPaymentsQuery.data]);
   const expenses = useMemo(() => expensesQuery.data ?? [], [expensesQuery.data]);
+  const priceHistory = useMemo(() => priceHistoryQuery.data ?? [], [priceHistoryQuery.data]);
   const subsSettings = useMemo(() => {
     const defaults = { costPerGame: 5, lateFee: 1, gameCost: 58 };
     return { ...defaults, ...(subsSettingsQuery.data ?? {}) };
@@ -353,6 +418,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         syncSubsPaymentsToSupabase(subsPayments),
         syncSubsSettingsToSupabase(subsSettings),
         syncExpensesToSupabase(expenses),
+        syncSubsPriceHistoryToSupabase(priceHistory),
       ]);
       setSyncStatus('synced');
       console.log('[Sync] Full sync completed');
@@ -360,19 +426,20 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       setSyncStatus('error');
       console.log('[Sync] Full sync failed:', e);
     }
-  }, [players, restrictions, matchHistory, subsPayments, subsSettings, expenses]);
+  }, [players, restrictions, matchHistory, subsPayments, subsSettings, expenses, priceHistory]);
 
   const forceCloudRestore = useCallback(async () => {
     if (!isSupabaseConfigured() || !cloudSyncRef.current || !gid) return;
     setSyncStatus('syncing');
     try {
-      const [remotePlayers, remoteRestrictions, remoteMatches, remotePayments, remoteSettings, remoteExpenses] = await Promise.all([
+      const [remotePlayers, remoteRestrictions, remoteMatches, remotePayments, remoteSettings, remoteExpenses, remotePriceHistory] = await Promise.all([
         fetchPlayersFromSupabase(),
         fetchRestrictionsFromSupabase(),
         fetchMatchResultsFromSupabase(),
         fetchSubsPaymentsFromSupabase(),
         fetchSubsSettingsFromSupabase(),
         fetchExpensesFromSupabase(),
+        fetchSubsPriceHistoryFromSupabase(),
       ]);
       if (remotePlayers) {
         await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(remotePlayers));
@@ -397,6 +464,10 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (remoteExpenses) {
         await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(remoteExpenses));
         queryClient.setQueryData(['expenses', gid], remoteExpenses);
+      }
+      if (remotePriceHistory) {
+        await AsyncStorage.setItem(sk(gid, 'price_history'), JSON.stringify(remotePriceHistory));
+        queryClient.setQueryData(['priceHistory', gid], remotePriceHistory);
       }
       setSyncStatus('synced');
       console.log('[Restore] Data restored from Supabase');
@@ -460,18 +531,35 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       .map(p => p.voidedMatchId as string);
   }, [subsPayments]);
 
+  const getPriceForDate = useCallback((dateStr: string): number => {
+    if (priceHistory.length === 0) return subsSettings.costPerGame;
+    const sorted = [...priceHistory].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    let price = subsSettings.costPerGame;
+    const normalised = normaliseDateForCompare(dateStr);
+    for (const entry of sorted) {
+      if (entry.effectiveFrom <= normalised) {
+        price = entry.amount;
+      } else {
+        break;
+      }
+    }
+    return price;
+  }, [priceHistory, subsSettings.costPerGame]);
+
   const getPlayerBalance = useCallback((playerId: string) => {
     const credits = subsPayments
       .filter(p => p.playerId === playerId && p.type === 'credit' && !p.voidedMatchId)
       .reduce((sum, p) => sum + p.amount, 0);
     const voidedMatchIds = getVoidedMatchIds(playerId);
-    const appearances = matchHistory.filter(m => m.playerIds.includes(playerId) && !voidedMatchIds.includes(m.id)).length;
-    const gameCosts = appearances * subsSettings.costPerGame;
+    const playerMatches = matchHistory.filter(m => m.playerIds.includes(playerId) && !voidedMatchIds.includes(m.id));
+    const gameCosts = priceHistory.length > 0
+      ? playerMatches.reduce((sum, m) => sum + getPriceForDate(m.date), 0)
+      : playerMatches.length * subsSettings.costPerGame;
     const manualDebits = subsPayments
       .filter(p => p.playerId === playerId && p.type === 'debit' && !p.description.startsWith('Match '))
       .reduce((sum, p) => sum + p.amount, 0);
     return credits - gameCosts - manualDebits;
-  }, [subsPayments, matchHistory, subsSettings.costPerGame, getVoidedMatchIds]);
+  }, [subsPayments, matchHistory, subsSettings.costPerGame, getVoidedMatchIds, priceHistory, getPriceForDate]);
 
   const getPlayerPayments = useCallback((playerId: string) => {
     const voidedMatchIds = getVoidedMatchIds(playerId);
@@ -482,14 +570,14 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       .map(m => ({
         id: `synthetic-${m.id}-${playerId}`,
         playerId,
-        amount: subsSettings.costPerGame,
+        amount: priceHistory.length > 0 ? getPriceForDate(m.date) : subsSettings.costPerGame,
         type: 'debit' as const,
         description: `Match ${m.date}`,
         date: m.date,
         createdAt: m.createdAt,
       }));
     return [...manualPayments, ...matchDebits].sort((a, b) => b.createdAt - a.createdAt);
-  }, [subsPayments, matchHistory, subsSettings.costPerGame, getVoidedMatchIds]);
+  }, [subsPayments, matchHistory, subsSettings.costPerGame, getVoidedMatchIds, priceHistory, getPriceForDate]);
 
   const getTotalCollected = useCallback(() => {
     return subsPayments
@@ -569,6 +657,24 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     };
     saveSubsPayments([voidPayment, ...subsPayments]);
   }, [subsPayments, subsSettings.costPerGame, saveSubsPayments]);
+
+  const addPriceChange = useCallback((amount: number, effectiveFrom: string, note?: string) => {
+    if (!gid) return;
+    const newEntry: SubsPriceHistory = {
+      id: `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      groupId: gid,
+      amount,
+      effectiveFrom,
+      note,
+      createdAt: Date.now(),
+    };
+    console.log('[PriceHistory] Adding new price:', { amount, effectiveFrom, note });
+    savePriceHistory([...priceHistory, newEntry]);
+  }, [gid, priceHistory, savePriceHistory]);
+
+  const deletePriceChange = useCallback((id: string) => {
+    savePriceHistory(priceHistory.filter(e => e.id !== id));
+  }, [priceHistory, savePriceHistory]);
 
   const addExpense = useCallback((expense: Omit<Expense, 'id' | 'createdAt'>) => {
     const newExpense: Expense = {
@@ -835,6 +941,10 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     addExpense,
     deleteExpense,
     getTotalExpenses,
+    priceHistory,
+    addPriceChange,
+    deletePriceChange,
+    getPriceForDate,
     forceCloudSync,
     forceCloudRestore,
     sportConfig,
@@ -856,6 +966,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     updateSubsSettings, saveMatchResult, deleteMatchResult, updateMatchResult,
     assignPlayerToManualTeam, removePlayerFromManualTeam, clearManualTeams, buildManualTeamOption,
     getExportData, expenses, addExpense, deleteExpense, getTotalExpenses,
+    priceHistory, addPriceChange, deletePriceChange, getPriceForDate,
     forceCloudSync, forceCloudRestore, sportConfig, maxPlayersPerSide, maxTotalPlayers, activeGroup,
   ]);
 });

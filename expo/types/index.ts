@@ -54,6 +54,7 @@ export interface MatchResult {
   playerIds: string[];
   isManualTeams: boolean;
   manOfMatchId?: string;
+  report?: string;
   createdAt: number;
 }
 
@@ -90,4 +91,13 @@ export interface Expense {
   date: string;
   createdAt: number;
   adjustmentType?: 'addition' | 'deduction' | 'opening_balance';
+}
+
+export interface SubsPriceHistory {
+  id: string;
+  groupId: string;
+  amount: number;
+  effectiveFrom: string;
+  note?: string;
+  createdAt: number;
 }

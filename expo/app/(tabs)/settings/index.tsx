@@ -15,6 +15,7 @@ import { Restriction, Player } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function RestrictionsScreen() {
+  console.log('[Settings] Screen rendered');
   const { players, restrictions, addRestriction, removeRestriction, getPlayerById } = useTNF();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedPlayer1, setSelectedPlayer1] = useState<string | null>(null);

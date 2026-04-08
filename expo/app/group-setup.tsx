@@ -18,6 +18,7 @@ import { SportType } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function GroupSetupScreen() {
+  console.log('[GroupSetup] Screen rendered');
   const router = useRouter();
   const { addGroup } = useGroup();
 

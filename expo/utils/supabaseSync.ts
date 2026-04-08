@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { Player, Restriction, MatchResult, SubsPayment, SubsSettings, Expense } from '@/types';
+import { Player, Restriction, MatchResult, SubsPayment, SubsSettings, Expense, SubsPriceHistory } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CLOUD_SYNC_KEY = 'tnf_cloud_sync_enabled';
@@ -90,6 +90,7 @@ export async function syncMatchResultsToSupabase(results: MatchResult[]): Promis
       player_ids: m.playerIds,
       is_manual_teams: m.isManualTeams,
       man_of_match_id: m.manOfMatchId ?? null,
+      report: m.report ?? null,
       created_at: m.createdAt,
     }));
     const { error } = await supabase.from('match_results').upsert(rows);
@@ -203,6 +204,7 @@ export async function fetchMatchResultsFromSupabase(): Promise<MatchResult[] | n
       playerIds: row.player_ids as string[],
       isManualTeams: row.is_manual_teams as boolean,
       manOfMatchId: (row.man_of_match_id as string) ?? undefined,
+      report: (row.report as string) ?? undefined,
       createdAt: Number(row.created_at),
     }));
   } catch (e) {
@@ -311,6 +313,50 @@ export async function fetchExpensesFromSupabase(): Promise<Expense[] | null> {
     }));
   } catch (e) {
     console.log('[Supabase Fetch] Expenses fetch failed:', e);
+    return null;
+  }
+}
+
+export async function syncSubsPriceHistoryToSupabase(entries: SubsPriceHistory[]): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  try {
+    await supabase.from('subs_price_history').delete().neq('id', '');
+    if (entries.length === 0) return;
+    const rows = entries.map(e => ({
+      id: e.id,
+      group_id: e.groupId,
+      amount: e.amount,
+      effective_from: e.effectiveFrom,
+      note: e.note ?? null,
+      created_at: e.createdAt,
+    }));
+    const { error } = await supabase.from('subs_price_history').upsert(rows);
+    if (error) console.log('[Supabase Sync] Error syncing price history:', error.message);
+    else console.log('[Supabase Sync] Price history synced:', entries.length);
+  } catch (e) {
+    console.log('[Supabase Sync] Price history sync failed:', e);
+  }
+}
+
+export async function fetchSubsPriceHistoryFromSupabase(): Promise<SubsPriceHistory[] | null> {
+  if (!isSupabaseConfigured()) return null;
+  try {
+    const { data, error } = await supabase.from('subs_price_history').select('*').order('effective_from', { ascending: true });
+    if (error) {
+      console.log('[Supabase Fetch] Error fetching price history:', error.message);
+      return null;
+    }
+    if (!data || data.length === 0) return null;
+    return data.map((row: Record<string, unknown>) => ({
+      id: row.id as string,
+      groupId: row.group_id as string,
+      amount: Number(row.amount),
+      effectiveFrom: row.effective_from as string,
+      note: (row.note as string) ?? undefined,
+      createdAt: Number(row.created_at),
+    }));
+  } catch (e) {
+    console.log('[Supabase Fetch] Price history fetch failed:', e);
     return null;
   }
 }

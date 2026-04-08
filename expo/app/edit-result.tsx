@@ -18,6 +18,7 @@ import TuesdayPicker from '@/components/TuesdayPicker';
 type Step = 'date' | 'teamA' | 'teamB' | 'score' | 'motm';
 
 export default function EditResultScreen() {
+  console.log('[EditResult] Screen rendered');
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { players, matchHistory, updateMatchResult } = useTNF();

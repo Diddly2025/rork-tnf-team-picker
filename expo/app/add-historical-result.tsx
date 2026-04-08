@@ -19,6 +19,7 @@ import TuesdayPicker from '@/components/TuesdayPicker';
 type Step = 'date' | 'teamA' | 'teamB' | 'score' | 'motm';
 
 export default function AddHistoricalResultScreen() {
+  console.log('[AddHistoricalResult] Screen rendered');
   const router = useRouter();
   const { players, saveMatchResult } = useTNF();
   const { activeGroup } = useGroup();

@@ -14,6 +14,7 @@ import Colors from '@/constants/colors';
 type Tab = 'appearances' | 'wins' | 'motm';
 
 export default function StatsScreen() {
+  console.log('[Stats] Screen rendered');
   const {
     players,
     matchHistory,

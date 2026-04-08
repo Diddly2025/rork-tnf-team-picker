@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import React from 'react';
 import { Users, Calendar, Trophy, Clock, BarChart2, Wallet, PiggyBank } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 

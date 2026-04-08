@@ -12,7 +12,14 @@ import Colors from '@/constants/colors';
 
 void SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 1000 * 60 * 5,
+    },
+  },
+});
 
 function useProtectedRoute() {
   const { isAuthenticated, isLoading, initialCheckDone } = useAuth();
@@ -47,7 +54,7 @@ function RootLayoutNav() {
 
   if (!initialCheckDone || isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }} testID="loading-screen">
         <ActivityIndicator size="large" color={Colors.gold} />
       </View>
     );
@@ -73,6 +80,8 @@ function RootLayoutNav() {
       <Stack.Screen name="match-result" options={{ title: 'Record Result', presentation: 'modal' }} />
       <Stack.Screen name="add-historical-result" options={{ title: 'Add Past Result', presentation: 'modal' }} />
       <Stack.Screen name="edit-result" options={{ title: 'Edit Result' }} />
+      <Stack.Screen name="match-report" options={{ title: 'Match Report' }} />
+      <Stack.Screen name="price-history" options={{ title: 'Subs Price History' }} />
     </Stack>
   );
 }

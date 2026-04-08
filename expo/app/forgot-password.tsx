@@ -18,6 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import Colors from '@/constants/colors';
 
 export default function ForgotPasswordScreen() {
+  console.log('[ForgotPassword] Screen rendered');
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { resetPassword } = useAuth();

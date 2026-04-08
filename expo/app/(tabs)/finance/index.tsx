@@ -67,6 +67,7 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
 };
 
 export default function FinanceScreen() {
+  console.log('[Finance] Screen rendered');
   const {
     players,
     matchHistory,

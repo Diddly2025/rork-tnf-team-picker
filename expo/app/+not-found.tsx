@@ -5,7 +5,7 @@ import Colors from '@/constants/colors';
 export default function NotFoundScreen() {
   return (
     <>
-      <Stack.Screen options={{ title: 'Oops!' }} />
+      <Stack.Screen options={{ title: 'Page Not Found' }} />
       <View style={styles.container} testID="not-found-screen">
         <Text style={styles.title}>This screen does not exist.</Text>
         <Link href="/" style={styles.link}>
@@ -36,5 +36,6 @@ const styles = StyleSheet.create({
   linkText: {
     fontSize: 14,
     color: Colors.gold,
+    fontWeight: '600' as const,
   },
 });

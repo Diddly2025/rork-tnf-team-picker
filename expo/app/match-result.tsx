@@ -14,6 +14,7 @@ import { Player } from '@/types';
 import Colors from '@/constants/colors';
 
 export default function MatchResultScreen() {
+  console.log('[MatchResult] Screen rendered');
   const router = useRouter();
   const params = useLocalSearchParams<{ isManual?: string; teamOptionIndex?: string }>();
   const isManual = params.isManual === 'true';

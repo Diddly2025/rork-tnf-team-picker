@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Clock, Trash2, Download, Trophy, Plus, Star, Pencil, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { Clock, Trash2, Download, Trophy, Plus, Star, Pencil, ChevronDown, ChevronUp, FileText } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
 import { SPORT_CONFIGS, getSportLabel } from '@/constants/sports';
@@ -20,6 +20,7 @@ import PlayerAvatar from '@/components/PlayerAvatar';
 import Colors from '@/constants/colors';
 
 export default function HistoryScreen() {
+  console.log('[History] Screen rendered');
   const router = useRouter();
   const { matchHistory, deleteMatchResult, getExportData, players } = useTNF();
   const { groups, activeGroupId, setActiveGroup } = useGroup();
@@ -197,9 +198,23 @@ export default function HistoryScreen() {
             <Text style={styles.motmLabel}>POTM</Text>
           </View>
         )}
+
+        <Pressable
+          style={[styles.reportBtn, item.report ? styles.reportBtnView : styles.reportBtnAdd]}
+          onPress={() => {
+            const mode = item.report ? 'view' : 'add';
+            router.push({ pathname: '/match-report', params: { id: item.id, mode } } as any);
+          }}
+          testID={`report-btn-${item.id}`}
+        >
+          <FileText size={13} color={item.report ? Colors.gold : Colors.textMuted} />
+          <Text style={[styles.reportBtnText, item.report ? styles.reportBtnTextView : styles.reportBtnTextAdd]}>
+            {item.report ? 'View Report' : 'Add Report'}
+          </Text>
+        </Pressable>
       </View>
     );
-  }, [handleDelete, handleEdit, getMotmPlayer, expandedIds, toggleExpanded]);
+  }, [handleDelete, handleEdit, getMotmPlayer, expandedIds, toggleExpanded, router]);
 
   const renderEmpty = () => (
     <View style={styles.emptyState}>
@@ -557,6 +572,34 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.textMuted,
     letterSpacing: 0.5,
+  },
+  reportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  reportBtnAdd: {
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.background,
+  },
+  reportBtnView: {
+    borderColor: 'rgba(200,160,42,0.3)',
+    backgroundColor: 'rgba(200,160,42,0.06)',
+  },
+  reportBtnText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+  reportBtnTextAdd: {
+    color: Colors.textMuted,
+  },
+  reportBtnTextView: {
+    color: Colors.gold,
   },
   emptyState: {
     flex: 1,

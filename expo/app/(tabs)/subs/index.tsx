@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import {
   Wallet, Plus, X, ChevronRight, TrendingUp, TrendingDown,
-  Settings, Trash2, PoundSterling, ChevronLeft, AlertTriangle, Coins, UserPlus, Ban,
+  Settings, Trash2, PoundSterling, ChevronLeft, AlertTriangle, Coins, UserPlus, Ban, History,
 } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
@@ -36,6 +36,7 @@ function getToday(): Date {
 }
 
 export default function SubsScreen() {
+  console.log('[Subs] Screen rendered');
   const {
     players,
     getPlayerBalance,
@@ -702,6 +703,22 @@ export default function SubsScreen() {
                 <Pressable style={styles.saveSettingsBtn} onPress={handleSaveSettings}>
                   <Text style={styles.saveSettingsBtnText}>Save Settings</Text>
                 </Pressable>
+
+                <Pressable
+                  style={styles.priceHistoryLink}
+                  onPress={() => {
+                    setSettingsVisible(false);
+                    setTimeout(() => router.push('/price-history' as any), 300);
+                  }}
+                  testID="price-history-link"
+                >
+                  <History size={16} color={Colors.gold} />
+                  <View style={styles.priceHistoryLinkText}>
+                    <Text style={styles.priceHistoryLinkTitle}>Subs Price History</Text>
+                    <Text style={styles.priceHistoryLinkSub}>Track price changes over time</Text>
+                  </View>
+                  <ChevronRight size={16} color={Colors.textMuted} />
+                </Pressable>
               </View>
             </Pressable>
           </Pressable>
@@ -1328,5 +1345,30 @@ const styles = StyleSheet.create({
     color: Colors.background,
     fontWeight: '700' as const,
     fontSize: 15,
+  },
+  priceHistoryLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(200,160,42,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,160,42,0.2)',
+  },
+  priceHistoryLinkText: {
+    flex: 1,
+  },
+  priceHistoryLinkTitle: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.gold,
+  },
+  priceHistoryLinkSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
 });
