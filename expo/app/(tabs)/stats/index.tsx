@@ -5,9 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  TextInput,
 } from 'react-native';
-import { Trophy, Star, TrendingUp, Users, Award, Activity, Filter, X } from 'lucide-react-native';
+import { Trophy, Star, TrendingUp, Users, Award, Activity } from 'lucide-react-native';
 import { useTNF } from '@/context/TNFContext';
 import PlayerAvatar from '@/components/PlayerAvatar';
 import Colors from '@/constants/colors';
@@ -28,12 +27,6 @@ export default function StatsScreen() {
   } = useTNF();
 
   const [activeTab, setActiveTab] = useState<Tab>('appearances');
-  const [minAppearances, setMinAppearances] = useState<string>('');
-
-  const minAppsNum = useMemo(() => {
-    const n = parseInt(minAppearances, 10);
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  }, [minAppearances]);
 
   const totalMatches = matchHistory.length;
   const totalGoals = useMemo(
@@ -99,11 +92,7 @@ export default function StatsScreen() {
     { key: 'motm', label: 'POTM', icon: <Star size={14} color={activeTab === 'motm' ? Colors.background : Colors.textMuted} /> },
   ];
 
-  const baseList = activeTab === 'appearances' ? appearanceLeaders : activeTab === 'wins' ? winLeaders : motmLeaders;
-  const currentList = useMemo(
-    () => (minAppsNum > 0 ? baseList.filter(p => p.appearances >= minAppsNum) : baseList),
-    [baseList, minAppsNum]
-  );
+  const currentList = activeTab === 'appearances' ? appearanceLeaders : activeTab === 'wins' ? winLeaders : motmLeaders;
 
   const getMedalColor = (index: number) => {
     if (index === 0) return Colors.gold;
@@ -251,40 +240,6 @@ export default function StatsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Player Leaderboard</Text>
 
-        <View style={styles.filterRow}>
-          <View style={styles.filterInputWrap}>
-            <Filter size={14} color={Colors.textMuted} />
-            <TextInput
-              style={styles.filterInput}
-              value={minAppearances}
-              onChangeText={(t) => setMinAppearances(t.replace(/[^0-9]/g, ''))}
-              placeholder="Min. Appearances"
-              placeholderTextColor={Colors.textMuted}
-              keyboardType="number-pad"
-              inputMode="numeric"
-              testID="min-appearances-input"
-            />
-            {minAppearances.length > 0 && (
-              <Pressable
-                onPress={() => setMinAppearances('')}
-                style={styles.filterClearBtn}
-                hitSlop={8}
-                testID="min-appearances-clear"
-              >
-                <X size={14} color={Colors.textMuted} />
-              </Pressable>
-            )}
-          </View>
-        </View>
-
-        {minAppsNum > 0 && (
-          <View style={styles.filterBadge}>
-            <Text style={styles.filterBadgeText}>
-              Showing players with {minAppsNum}+ appearance{minAppsNum === 1 ? '' : 's'}
-            </Text>
-          </View>
-        )}
-
         <View style={styles.tabBar}>
           {tabs.map(tab => (
             <Pressable
@@ -306,9 +261,7 @@ export default function StatsScreen() {
           <View style={styles.emptyLeader}>
             <Trophy size={40} color={Colors.textMuted} />
             <Text style={styles.emptyLeaderText}>
-              {minAppsNum > 0
-                ? `No players with ${minAppsNum}+ appearances`
-                : activeTab === 'motm' ? 'No POTM awards yet' : 'No data yet — play some matches!'}
+              {activeTab === 'motm' ? 'No POTM awards yet' : 'No data yet — play some matches!'}
             </Text>
           </View>
         ) : (
@@ -515,43 +468,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 32,
     gap: 10,
-  },
-  filterRow: {
-    marginBottom: 10,
-  },
-  filterInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.background,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  filterInput: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.text,
-    fontWeight: '600' as const,
-    padding: 0,
-  },
-  filterClearBtn: {
-    padding: 2,
-  },
-  filterBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.gold + '20',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginBottom: 10,
-  },
-  filterBadgeText: {
-    fontSize: 11,
-    fontWeight: '700' as const,
-    color: Colors.gold,
   },
   emptyLeaderText: {
     fontSize: 13,
