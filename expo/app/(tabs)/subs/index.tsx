@@ -185,7 +185,7 @@ export default function SubsScreen() {
       });
     });
 
-    subsPayments.forEach(p => {
+    allPayments.forEach(p => {
       if (p.type !== 'credit' || p.voidedMatchId) return;
       const key = monthKeyFromDate(p.date);
       if (!key) return;
@@ -223,7 +223,7 @@ export default function SubsScreen() {
         };
       })
       .sort((a, b) => b.key.localeCompare(a.key));
-  }, [matchHistory, subsPayments, getPriceForDate, voidedMatchIdsAll, players]);
+  }, [matchHistory, allPayments, getPriceForDate, voidedMatchIdsAll, players]);
 
   const playerMonthlyBreakdown = useMemo(() => {
     if (!selectedPlayer) return [];
