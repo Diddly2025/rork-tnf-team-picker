@@ -15,6 +15,7 @@ import {
 import {
   Wallet, Plus, X, ChevronRight, TrendingUp, TrendingDown,
   Settings, Trash2, PoundSterling, ChevronLeft, AlertTriangle, Coins, UserPlus, Ban, History,
+  Calendar, ChevronDown, CheckCircle2,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useTNF } from '@/context/TNFContext';
@@ -23,7 +24,7 @@ import { SPORT_CONFIGS } from '@/constants/sports';
 import { Player, SubsPayment } from '@/types';
 import Colors from '@/constants/colors';
 
-type Tab = 'overview' | 'history';
+type Tab = 'overview' | 'months' | 'history';
 type PaymentFormType = 'credit' | 'debit' | 'latefee' | 'guest';
 
 function formatDateDisplay(date: Date): string {
@@ -34,6 +35,41 @@ function getToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+const MONTH_NAMES_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function parseDateToISO(dateStr: string): string {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.substring(0, 10);
+  const months: Record<string, string> = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+  };
+  const parts = dateStr.trim().split(/[\s,/-]+/);
+  if (parts.length >= 3) {
+    const day = parts[0].padStart(2, '0');
+    const monthKey = parts[1].toLowerCase().substring(0, 3);
+    const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+    const month = months[monthKey] ?? '01';
+    return `${year}-${month}-${day}`;
+  }
+  return dateStr;
+}
+
+function monthKeyFromDate(dateStr: string): string {
+  const iso = parseDateToISO(dateStr);
+  return iso.substring(0, 7);
+}
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split('-');
+  const idx = parseInt(month, 10) - 1;
+  if (idx < 0 || idx > 11 || !year) return key;
+  return `${MONTH_NAMES_FULL[idx]} ${year}`;
 }
 
 export default function SubsScreen() {
@@ -91,6 +127,114 @@ export default function SubsScreen() {
       return balA - balB;
     });
   }, [players, getPlayerBalance]);
+
+  const voidedMatchIdsAll = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    allPayments.forEach(p => {
+      if (p.type === 'credit' && p.voidedMatchId) {
+        const set = map.get(p.playerId) ?? new Set<string>();
+        set.add(p.voidedMatchId);
+        map.set(p.playerId, set);
+      }
+    });
+    return map;
+  }, [allPayments]);
+
+  const monthlyOverview = useMemo(() => {
+    const monthMap = new Map<string, {
+      key: string;
+      games: number;
+      expected: number;
+      collected: number;
+      perPlayer: Map<string, { expected: number; paid: number; games: number }>;
+    }>();
+
+    const ensure = (key: string) => {
+      let entry = monthMap.get(key);
+      if (!entry) {
+        entry = { key, games: 0, expected: 0, collected: 0, perPlayer: new Map() };
+        monthMap.set(key, entry);
+      }
+      return entry;
+    };
+
+    matchHistory.forEach(m => {
+      const key = monthKeyFromDate(m.date);
+      if (!key) return;
+      const entry = ensure(key);
+      entry.games += 1;
+      const price = getPriceForDate(m.date);
+      m.playerIds.forEach(pid => {
+        const voided = voidedMatchIdsAll.get(pid);
+        if (voided && voided.has(m.id)) return;
+        entry.expected += price;
+        const pp = entry.perPlayer.get(pid) ?? { expected: 0, paid: 0, games: 0 };
+        pp.expected += price;
+        pp.games += 1;
+        entry.perPlayer.set(pid, pp);
+      });
+    });
+
+    subsPayments.forEach(p => {
+      if (p.type !== 'credit' || p.voidedMatchId) return;
+      const key = monthKeyFromDate(p.date);
+      if (!key) return;
+      const entry = ensure(key);
+      entry.collected += p.amount;
+      const pp = entry.perPlayer.get(p.playerId) ?? { expected: 0, paid: 0, games: 0 };
+      pp.paid += p.amount;
+      entry.perPlayer.set(p.playerId, pp);
+    });
+
+    return Array.from(monthMap.values())
+      .map(entry => {
+        const owingPlayers: { playerId: string; name: string; owed: number }[] = [];
+        entry.perPlayer.forEach((stats, pid) => {
+          const balance = stats.paid - stats.expected;
+          if (balance < -0.0001) {
+            const player = players.find(p => p.id === pid);
+            owingPlayers.push({
+              playerId: pid,
+              name: player?.name ?? 'Unknown',
+              owed: Math.abs(balance),
+            });
+          }
+        });
+        owingPlayers.sort((a, b) => b.owed - a.owed);
+        const outstanding = entry.expected - entry.collected;
+        return {
+          key: entry.key,
+          games: entry.games,
+          expected: entry.expected,
+          collected: entry.collected,
+          outstanding,
+          owingPlayers,
+          perPlayer: entry.perPlayer,
+        };
+      })
+      .sort((a, b) => b.key.localeCompare(a.key));
+  }, [matchHistory, subsPayments, getPriceForDate, voidedMatchIdsAll, players]);
+
+  const playerMonthlyBreakdown = useMemo(() => {
+    if (!selectedPlayer) return [];
+    return monthlyOverview
+      .map(m => {
+        const stats = m.perPlayer.get(selectedPlayer.id) ?? { expected: 0, paid: 0, games: 0 };
+        return {
+          key: m.key,
+          games: stats.games,
+          expected: stats.expected,
+          paid: stats.paid,
+          balance: stats.paid - stats.expected,
+        };
+      })
+      .filter(m => m.games > 0 || m.paid > 0);
+  }, [monthlyOverview, selectedPlayer]);
+
+  const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const toggleMonth = useCallback((key: string) => {
+    setExpandedMonth(prev => (prev === key ? null : key));
+  }, []);
 
   const allPayments = useMemo(() => {
     const all: (SubsPayment & { playerName: string })[] = [];
@@ -391,18 +535,27 @@ export default function SubsScreen() {
         <Pressable
           style={[styles.tabBtn, activeTab === 'overview' && styles.tabBtnActive]}
           onPress={() => setActiveTab('overview')}
+          testID="subs-tab-players"
         >
           <Text style={[styles.tabBtnText, activeTab === 'overview' && styles.tabBtnTextActive]}>Players</Text>
         </Pressable>
         <Pressable
+          style={[styles.tabBtn, activeTab === 'months' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('months')}
+          testID="subs-tab-months"
+        >
+          <Text style={[styles.tabBtnText, activeTab === 'months' && styles.tabBtnTextActive]}>Months</Text>
+        </Pressable>
+        <Pressable
           style={[styles.tabBtn, activeTab === 'history' && styles.tabBtnActive]}
           onPress={() => setActiveTab('history')}
+          testID="subs-tab-history"
         >
-          <Text style={[styles.tabBtnText, activeTab === 'history' && styles.tabBtnTextActive]}>All Transactions</Text>
+          <Text style={[styles.tabBtnText, activeTab === 'history' && styles.tabBtnTextActive]}>Transactions</Text>
         </Pressable>
       </View>
 
-      {activeTab === 'overview' ? (
+      {activeTab === 'overview' && (
         <FlatList
           data={sortedPlayers}
           renderItem={renderPlayerRow}
@@ -415,7 +568,102 @@ export default function SubsScreen() {
             </View>
           }
         />
-      ) : (
+      )}
+      {activeTab === 'months' && (
+        <FlatList
+          data={monthlyOverview}
+          keyExtractor={item => item.key}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Calendar size={52} color={Colors.textMuted} />
+              <Text style={styles.emptyText}>No matches played yet</Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const expanded = expandedMonth === item.key;
+            const fullyPaid = item.outstanding <= 0.0001;
+            const partial = !fullyPaid && item.collected > 0.0001;
+            const pillColor = fullyPaid ? Colors.success : partial ? Colors.gold : Colors.danger;
+            const pillBg = fullyPaid
+              ? 'rgba(22,163,74,0.12)'
+              : partial
+              ? 'rgba(200,160,42,0.14)'
+              : 'rgba(220,53,69,0.12)';
+            return (
+              <View style={styles.monthCard}>
+                <Pressable
+                  style={styles.monthHeader}
+                  onPress={() => toggleMonth(item.key)}
+                  testID={`month-row-${item.key}`}
+                >
+                  <View style={styles.monthIconWrap}>
+                    <Calendar size={18} color={Colors.gold} />
+                  </View>
+                  <View style={styles.monthInfo}>
+                    <Text style={styles.monthTitle}>{monthLabel(item.key)}</Text>
+                    <Text style={styles.monthSubtitle}>
+                      {item.games} {item.games === 1 ? 'game' : 'games'} · {item.owingPlayers.length} owe
+                    </Text>
+                  </View>
+                  <View style={[styles.monthPill, { backgroundColor: pillBg }]}>
+                    {fullyPaid ? (
+                      <CheckCircle2 size={14} color={pillColor} />
+                    ) : (
+                      <PoundSterling size={13} color={pillColor} />
+                    )}
+                    <Text style={[styles.monthPillText, { color: pillColor }]}>
+                      {fullyPaid ? 'Paid' : `£${item.outstanding.toFixed(2)}`}
+                    </Text>
+                  </View>
+                  <ChevronDown
+                    size={18}
+                    color={Colors.textMuted}
+                    style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }}
+                  />
+                </Pressable>
+                <View style={styles.monthStatsRow}>
+                  <View style={styles.monthStatItem}>
+                    <Text style={styles.monthStatLabel}>Expected</Text>
+                    <Text style={styles.monthStatValue}>£{item.expected.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.monthStatDivider} />
+                  <View style={styles.monthStatItem}>
+                    <Text style={styles.monthStatLabel}>Collected</Text>
+                    <Text style={[styles.monthStatValue, { color: Colors.success }]}>£{item.collected.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.monthStatDivider} />
+                  <View style={styles.monthStatItem}>
+                    <Text style={styles.monthStatLabel}>Outstanding</Text>
+                    <Text style={[styles.monthStatValue, { color: item.outstanding > 0.0001 ? Colors.danger : Colors.text }]}>
+                      £{Math.max(0, item.outstanding).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+                {expanded && (
+                  <View style={styles.monthExpand}>
+                    {item.owingPlayers.length === 0 ? (
+                      <View style={styles.monthAllPaid}>
+                        <CheckCircle2 size={16} color={Colors.success} />
+                        <Text style={styles.monthAllPaidText}>Everyone paid up for this month</Text>
+                      </View>
+                    ) : (
+                      item.owingPlayers.map(op => (
+                        <View key={op.playerId} style={styles.owingRow}>
+                          <View style={styles.owingDot} />
+                          <Text style={styles.owingName}>{op.name}</Text>
+                          <Text style={styles.owingAmount}>-£{op.owed.toFixed(2)}</Text>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          }}
+        />
+      )}
+      {activeTab === 'history' && (
         <FlatList
           data={allPayments}
           renderItem={renderHistoryRow}
@@ -490,6 +738,34 @@ export default function SubsScreen() {
                 <Text style={styles.paymentBtnText}>Guest</Text>
               </Pressable>
             </View>
+
+            {playerMonthlyBreakdown.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>Monthly Breakdown</Text>
+                <ScrollView style={styles.monthlyList} showsVerticalScrollIndicator={false}>
+                  {playerMonthlyBreakdown.map(m => {
+                    const fullyPaid = m.balance >= -0.0001;
+                    const partial = !fullyPaid && m.paid > 0.0001;
+                    const balColor = fullyPaid ? Colors.success : partial ? Colors.gold : Colors.danger;
+                    return (
+                      <View key={m.key} style={styles.monthMiniRow}>
+                        <View style={styles.monthMiniLeft}>
+                          <Text style={styles.monthMiniTitle}>{monthLabel(m.key)}</Text>
+                          <Text style={styles.monthMiniSub}>
+                            {m.games} {m.games === 1 ? 'game' : 'games'} · £{m.expected.toFixed(2)} expected · £{m.paid.toFixed(2)} paid
+                          </Text>
+                        </View>
+                        <Text style={[styles.monthMiniBal, { color: balColor }]}>
+                          {fullyPaid && Math.abs(m.balance) < 0.0001
+                            ? '£0.00'
+                            : `${m.balance >= 0 ? '+' : '-'}£${Math.abs(m.balance).toFixed(2)}`}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
 
             <Text style={styles.sectionLabel}>Transaction History</Text>
             <ScrollView style={styles.transactionList} showsVerticalScrollIndicator={false}>
@@ -1372,5 +1648,152 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 1,
+  },
+  monthCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    overflow: 'hidden',
+  },
+  monthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  monthIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(200,160,42,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthInfo: {
+    flex: 1,
+  },
+  monthTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  monthSubtitle: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  monthPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  monthPillText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  monthStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 2,
+  },
+  monthStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  monthStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: Colors.cardBorder,
+  },
+  monthStatLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    fontWeight: '600' as const,
+  },
+  monthStatValue: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  monthExpand: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: Colors.cardBorder,
+    gap: 8,
+  },
+  monthAllPaid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+  },
+  monthAllPaidText: {
+    fontSize: 13,
+    color: Colors.success,
+    fontWeight: '600' as const,
+  },
+  owingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 6,
+  },
+  owingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.danger,
+  },
+  owingName: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.text,
+    fontWeight: '500' as const,
+  },
+  owingAmount: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.danger,
+  },
+  monthlyList: {
+    maxHeight: 200,
+    marginHorizontal: 20,
+  },
+  monthMiniRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+    gap: 10,
+  },
+  monthMiniLeft: {
+    flex: 1,
+  },
+  monthMiniTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  monthMiniSub: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  monthMiniBal: {
+    fontSize: 14,
+    fontWeight: '700' as const,
   },
 });
