@@ -90,6 +90,7 @@ export default function SubsScreen() {
     subsSettings,
     updateSubsSettings,
     matchHistory,
+    getPriceForDate,
   } = useTNF();
 
   const { groups, activeGroup, activeGroupId, setActiveGroup } = useGroup();
