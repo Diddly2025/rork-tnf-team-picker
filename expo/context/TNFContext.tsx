@@ -27,6 +27,7 @@ import {
   setCloudSyncEnabled as saveCloudSyncPref,
 } from '@/utils/supabaseSync';
 import { isSupabaseConfigured } from '@/utils/supabase';
+import { setLastSyncedAt } from '@/utils/lastSync';
 
 function sk(groupId: string | null, suffix: string): string {
   return `pd_${groupId ?? 'none'}_${suffix}`;
@@ -59,6 +60,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const [manualTeamB, setManualTeamB] = useState<Player[]>([]);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState<boolean>(false);
+  const [lastSyncedAt, setLastSyncedAtState] = useState<number | null>(null);
   const initialSyncDone = useRef(false);
   const cloudSyncRef = useRef(false);
 
@@ -95,6 +97,13 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
   const shouldSync = useCallback(() => {
     return cloudSyncRef.current && isSupabaseConfigured();
   }, []);
+
+  const markSynced = useCallback(async () => {
+    const now = Date.now();
+    setLastSyncedAtState(now);
+    await setLastSyncedAt(activeGroupId, now);
+    queryClient.setQueryData(['lastSync', activeGroupId ?? 'none'], now);
+  }, [activeGroupId, queryClient]);
 
   const gid = activeGroupId;
   const hasGroup = !!gid;
@@ -291,7 +300,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return players;
       await AsyncStorage.setItem(sk(gid, 'players'), JSON.stringify(players));
       if (shouldSync()) {
-        void syncPlayersToSupabase(players).catch(e => console.log('[Sync] Players bg sync error:', e));
+        void syncPlayersToSupabase(players).then(() => markSynced()).catch(e => console.log('[Sync] Players bg sync error:', e));
       }
       return players;
     },
@@ -305,7 +314,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return restrictions;
       await AsyncStorage.setItem(sk(gid, 'restrictions'), JSON.stringify(restrictions));
       if (shouldSync()) {
-        void syncRestrictionsToSupabase(restrictions).catch(e => console.log('[Sync] Restrictions bg sync error:', e));
+        void syncRestrictionsToSupabase(restrictions).then(() => markSynced()).catch(e => console.log('[Sync] Restrictions bg sync error:', e));
       }
       return restrictions;
     },
@@ -319,7 +328,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return history;
       await AsyncStorage.setItem(sk(gid, 'match_history'), JSON.stringify(history));
       if (shouldSync()) {
-        void syncMatchResultsToSupabase(history).catch(e => console.log('[Sync] Match history bg sync error:', e));
+        void syncMatchResultsToSupabase(history).then(() => markSynced()).catch(e => console.log('[Sync] Match history bg sync error:', e));
       }
       return history;
     },
@@ -333,7 +342,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return payments;
       await AsyncStorage.setItem(sk(gid, 'subs_payments'), JSON.stringify(payments));
       if (shouldSync()) {
-        void syncSubsPaymentsToSupabase(payments).catch(e => console.log('[Sync] Subs bg sync error:', e));
+        void syncSubsPaymentsToSupabase(payments).then(() => markSynced()).catch(e => console.log('[Sync] Subs bg sync error:', e));
       }
       return payments;
     },
@@ -351,7 +360,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return expenses;
       await AsyncStorage.setItem(sk(gid, 'expenses'), JSON.stringify(expenses));
       if (shouldSync()) {
-        void syncExpensesToSupabase(expenses).catch(e => console.log('[Sync] Expenses bg sync error:', e));
+        void syncExpensesToSupabase(expenses).then(() => markSynced()).catch(e => console.log('[Sync] Expenses bg sync error:', e));
       }
       return expenses;
     },
@@ -369,7 +378,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return settings;
       await AsyncStorage.setItem(sk(gid, 'subs_settings'), JSON.stringify(settings));
       if (shouldSync()) {
-        void syncSubsSettingsToSupabase(settings).catch(e => console.log('[Sync] Settings bg sync error:', e));
+        void syncSubsSettingsToSupabase(settings).then(() => markSynced()).catch(e => console.log('[Sync] Settings bg sync error:', e));
       }
       return settings;
     },
@@ -383,7 +392,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
       if (!gid) return entries;
       await AsyncStorage.setItem(sk(gid, 'price_history'), JSON.stringify(entries));
       if (shouldSync()) {
-        void syncSubsPriceHistoryToSupabase(entries).catch(e => console.log('[Sync] Price history bg sync error:', e));
+        void syncSubsPriceHistoryToSupabase(entries).then(() => markSynced()).catch(e => console.log('[Sync] Price history bg sync error:', e));
       }
       return entries;
     },
@@ -421,12 +430,13 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         syncSubsPriceHistoryToSupabase(priceHistory),
       ]);
       setSyncStatus('synced');
+      await markSynced();
       console.log('[Sync] Full sync completed');
     } catch (e) {
       setSyncStatus('error');
       console.log('[Sync] Full sync failed:', e);
     }
-  }, [players, restrictions, matchHistory, subsPayments, subsSettings, expenses, priceHistory]);
+  }, [players, restrictions, matchHistory, subsPayments, subsSettings, expenses, priceHistory, markSynced]);
 
   const forceCloudRestore = useCallback(async () => {
     if (!isSupabaseConfigured() || !cloudSyncRef.current || !gid) return;
@@ -470,12 +480,13 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
         queryClient.setQueryData(['priceHistory', gid], remotePriceHistory);
       }
       setSyncStatus('synced');
+      await markSynced();
       console.log('[Restore] Data restored from Supabase');
     } catch (e) {
       setSyncStatus('error');
       console.log('[Restore] Restore failed:', e);
     }
-  }, [gid, queryClient]);
+  }, [gid, queryClient, markSynced]);
 
   const getPlayerAppearances = useCallback((playerId: string) => {
     return matchHistory.filter(m => m.playerIds.includes(playerId)).length;
@@ -685,7 +696,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     saveExpenses([newExpense, ...expenses]);
     if (shouldSync() && gid) {
       console.log('[Sync] Immediately upserting new expense to Supabase:', newExpense.id);
-      void upsertExpenseToSupabase(newExpense).catch(e => console.log('[Sync] Immediate expense upsert error:', e));
+      void upsertExpenseToSupabase(newExpense).then(() => markSynced()).catch(e => console.log('[Sync] Immediate expense upsert error:', e));
     }
   }, [expenses, saveExpenses, shouldSync, gid]);
 
@@ -693,7 +704,7 @@ export const [TNFProvider, useTNF] = createContextHook(() => {
     saveExpenses(expenses.filter(e => e.id !== id));
     if (shouldSync()) {
       console.log('[Sync] Immediately deleting expense from Supabase:', id);
-      void deleteExpenseFromSupabase(id).catch(e => console.log('[Sync] Immediate expense delete error:', e));
+      void deleteExpenseFromSupabase(id).then(() => markSynced()).catch(e => console.log('[Sync] Immediate expense delete error:', e));
     }
   }, [expenses, saveExpenses, shouldSync]);
 

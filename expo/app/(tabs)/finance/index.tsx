@@ -43,6 +43,7 @@ import { useRouter } from 'expo-router';
 import { useTNF } from '@/context/TNFContext';
 import { useGroup } from '@/context/GroupContext';
 import { useAuth } from '@/context/AuthContext';
+import { useLastSync } from '@/utils/lastSync';
 import { SPORT_CONFIGS } from '@/constants/sports';
 import Colors from '@/constants/colors';
 import { Expense } from '@/types';
@@ -91,6 +92,7 @@ export default function FinanceScreen() {
 
   const { groups, activeGroup, activeGroupId, setActiveGroup } = useGroup();
   const { signOut, user } = useAuth();
+  const { label: lastSyncLabel } = useLastSync(activeGroupId);
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('kitty');
@@ -548,6 +550,8 @@ export default function FinanceScreen() {
           <Text style={styles.cloudButtonSub}>{cloudSyncEnabled ? 'Upload local data to Supabase' : 'Enable cloud sync first'}</Text>
         </View>
       </Pressable>
+
+      <Text style={styles.lastSyncText} testID="last-synced-label">{lastSyncLabel}</Text>
 
       <Pressable
         style={[styles.cloudButton, styles.cloudButtonRestore, !cloudSyncEnabled && styles.cloudButtonDisabled]}
@@ -1555,6 +1559,14 @@ const styles = StyleSheet.create({
   cloudButtonSub: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.75)',
+  },
+  lastSyncText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+    fontWeight: '500' as const,
   },
   cloudDisclaimer: {
     fontSize: 12,

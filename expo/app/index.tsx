@@ -15,6 +15,12 @@ import { useGroup } from '@/context/GroupContext';
 import { SPORT_CONFIGS, getSportLabel } from '@/constants/sports';
 import { Group } from '@/types';
 import Colors from '@/constants/colors';
+import { useLastSync } from '@/utils/lastSync';
+
+function GroupLastSync({ groupId }: { groupId: string }) {
+  const { label } = useLastSync(groupId);
+  return <Text style={styles.lastSyncText} numberOfLines={1}>{label}</Text>;
+}
 
 export default function HomeScreen() {
   console.log('[Home] Screen rendered');
@@ -103,6 +109,7 @@ export default function HomeScreen() {
             <Calendar size={11} color={Colors.textMuted} />
             <Text style={styles.scheduleText}>{item.playDay} at {item.playTime}</Text>
           </View>
+          <GroupLastSync groupId={item.id} />
         </View>
         <ChevronRight size={20} color={Colors.textMuted} />
       </Pressable>
@@ -351,6 +358,12 @@ const styles = StyleSheet.create({
   scheduleText: {
     fontSize: 12,
     color: Colors.textMuted,
+  },
+  lastSyncText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 6,
+    fontWeight: '500' as const,
   },
   emptyContainer: {
     flex: 1,
