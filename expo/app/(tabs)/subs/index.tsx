@@ -128,6 +128,16 @@ export default function SubsScreen() {
     });
   }, [players, getPlayerBalance]);
 
+  const allPayments = useMemo(() => {
+    const all: (SubsPayment & { playerName: string })[] = [];
+    players.forEach(p => {
+      getPlayerPayments(p.id).forEach(payment => {
+        all.push({ ...payment, playerName: p.name });
+      });
+    });
+    return all.sort((a, b) => b.createdAt - a.createdAt);
+  }, [players, getPlayerPayments]);
+
   const voidedMatchIdsAll = useMemo(() => {
     const map = new Map<string, Set<string>>();
     allPayments.forEach(p => {
@@ -235,16 +245,6 @@ export default function SubsScreen() {
   const toggleMonth = useCallback((key: string) => {
     setExpandedMonth(prev => (prev === key ? null : key));
   }, []);
-
-  const allPayments = useMemo(() => {
-    const all: (SubsPayment & { playerName: string })[] = [];
-    players.forEach(p => {
-      getPlayerPayments(p.id).forEach(payment => {
-        all.push({ ...payment, playerName: p.name });
-      });
-    });
-    return all.sort((a, b) => b.createdAt - a.createdAt);
-  }, [players, getPlayerPayments]);
 
   const openPaymentForm = useCallback((type: PaymentFormType) => {
     setPaymentFormType(type);
